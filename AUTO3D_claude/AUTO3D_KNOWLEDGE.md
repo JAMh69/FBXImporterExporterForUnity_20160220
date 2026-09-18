@@ -178,6 +178,26 @@ prácticamente todo error de calibración. Un 8 % en `f` se traduce en un 8 % en
 dimensiones. Mejorar el estimador de puntos de fuga es, por tanto, la palanca con más
 retorno del proyecto.
 
+### 4.1 El puerto a Python mejora la calibración (medido el 18/09/2026)
+
+Al portar la geometría a Python sobre OpenCV (ver apartado 11) el error de la focal
+**baja del 8 % al 0,6-2,5 %**, medido sobre seis puntos de vista entre 20° y 40°.
+
+| medida | JavaScript | Python / OpenCV |
+|---|---|---|
+| Error de la focal | 8 % | **0,6 % – 2,5 %** |
+| Error del horizonte | 0,4 px (un solo punto de vista) | 1,9 – 8,1 px, media 5,1 |
+| Reconstrucción con calibración exacta | exacta | exacta |
+
+La diferencia está en el detector de bordes: el Canny y el trazado de contornos de
+OpenCV entregan segmentos más limpios al RANSAC que mi encadenado en JavaScript.
+
+Esto **cumple ya el primer punto de la Fase A** de la hoja de ruta (bajar el error de `f`
+por debajo del 3 %) sin necesidad del método de Zhang-Košecká. El cuello de botella se ha
+desplazado: ahora el error del horizonte viene de la dirección vertical estimada, no de
+la focal. Se comprobó si forzar el horizonte a pasar por el punto de fuga horizontal lo
+mejoraba: es la misma recta por construcción, así que por ahí no hay nada que ganar.
+
 ---
 
 ## 5. Limitaciones conocidas (honestas)
@@ -196,7 +216,8 @@ retorno del proyecto.
 ## 6. Hoja de ruta hacia BIM
 
 **Fase A — precisión de una vista** *(mayor retorno por esfuerzo)*
-- [ ] Estimar los puntos de fuga con el método de Zhang-Košecká o EM sobre las tres familias simultáneamente, en lugar de RANSAC en cascada. Objetivo: bajar el error de `f` del 8 % a <3 %.
+- [x] ~~Bajar el error de `f` del 8 % a <3 %~~ — **conseguido (0,6-2,5 %)** con el puerto a OpenCV, sin cambiar de método. Ver 4.1.
+- [ ] Mejorar la estimación de la dirección vertical, que es ahora el término dominante del error del horizonte.
 - [ ] Refinar los cuadriláteros aceptados ajustando sus lados a las aristas reales (snap).
 - [ ] Estimar y corregir la distorsión radial con el criterio de "las rectas deben ser rectas".
 
@@ -297,6 +318,43 @@ interfaz HTML como capa de anotación sobre un servidor local — que ya tiene u
 
 ---
 
+## 11. El puente: geometría portada a Python
+
+Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
+ChatGPT**, no para sustituirla:
+
+```
+vision_teach/geometry.py           puntos de fuga, calibración, planos, 3D  (387 líneas)
+vision_teach/geometry_overlay.py   puente: analizar, dibujar, medir          (82 líneas)
+vision_teach/tracking.py           seguimiento con control ida-vuelta        (71 líneas)
+tests/test_geometry.py             22 pruebas contra verdad conocida
+tests/scene.py                     generador de escena sintética
+INTEGRACION.md                     los cambios exactos a hacer en su app
+```
+
+Decisiones de diseño:
+
+- **Sin dependencias nuevas.** Solo numpy y OpenCV, ya presentes en su `requirements.txt`.
+- **Se reutilizan sus umbrales aprendidos.** `analyse()` recibe el diccionario que
+  devuelve su `Learner.parameters`, de modo que lo que el Random Forest aprende calibra
+  también la geometría. Es la unión real entre las dos líneas, no una convivencia.
+- **`geometry.py` no dibuja.** La matemática se prueba sin pintar y el dibujo se cambia
+  sin tocar la matemática.
+- **`cv2.calcOpticalFlowPyrLK`** sustituye a mis 150 líneas de Lucas-Kanade en JavaScript.
+  El control ida-vuelta sí se conserva: es lo que evita el emparejamiento equivocado con
+  residuo bajo en fachadas de ventanas repetidas.
+- **Las marcas propagadas por seguimiento no deben entrar en el dataset de
+  entrenamiento.** Si una marca seguida se usa como ejemplo, el modelo se entrena con su
+  propia salida y se realimenta. Queda avisado en `INTEGRACION.md`.
+
+Lo que hace falta en su interfaz y no está aquí porque es su terreno: retroceder en el
+vídeo (`CAP_PROP_POS_FRAMES`), arrastrar un vértice ya guardado, y elegir la clase del
+elemento (fachada / suelo / cubierta / hueco / medianera) al marcar una superficie. Sin
+esa clase no hay BIM: es la que decide si un polígono se apoya en el terreno o se levanta
+vertical sobre su base.
+
+---
+
 ## 9. Registro
 
 ### 2026-09-18 — v0.1, primera versión funcional (Claude)
@@ -319,3 +377,13 @@ Leído `AUTO3D_codigo.zip` completo. Documentada la comparación en el apartado 
 Conclusión: las dos apps aprenden cosas distintas y complementarias (calibración de
 filtros frente a semántica + geometría). Pendiente la decisión del usuario sobre cómo
 unificar las dos líneas.
+
+### 2026-09-18 — Geometría portada a Python para la app de ChatGPT
+Escritos `geometry.py`, `geometry_overlay.py` y `tracking.py` más 22 pruebas. Se enchufan
+a su aplicación sin dependencias nuevas y sin tocar su interfaz, su persistencia ni su
+empaquetado. Reparto: ellos la ingeniería que ya funciona, yo la geometría.
+
+Hallazgos de la verificación:
+- La focal pasa de un 8 % de error en JavaScript a un 0,6-2,5 % en OpenCV. Queda cumplido el primer objetivo de la Fase A sin cambiar de método.
+- La escena sintética de prueba tenía un defecto: el suelo se dibujaba envolviendo la cámara y tapaba el cielo, porque no se comprobaba que los vértices estuvieran delante del objetivo. Corregido; las cifras de detección anteriores a esa corrección no son válidas.
+- Descartada una mejora del horizonte (forzarlo a pasar por el punto de fuga horizontal): es la misma recta por construcción. Resultado negativo, anotado para no repetirlo.
