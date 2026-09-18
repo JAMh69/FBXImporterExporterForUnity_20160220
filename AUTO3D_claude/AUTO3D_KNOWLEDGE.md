@@ -662,6 +662,74 @@ incertidumbre. La fotogrametría después la refina.
 
 ---
 
+## 16. ¿Hacen falta la fotogrametría y el RTK? Medido (18/09/2026)
+
+El usuario aclara que vuela **los dos drones, sobre todo el Matrice 4E**. Como ese es un
+equipo de topografía y probablemente lleva RTK, la pregunta pasa a ser concreta: **¿basta
+con la pose que viene en los metadatos, o hay que pasar por fotogrametría?**
+
+Simulación sobre el edificio de 20 × 10 × 11 m, seis tomas en órbita de 60 m, marcado con
+2 px de error.
+
+### Posición absoluta de un punto
+
+| precisión GPS | gimbal exacto | gimbal 0,5° | gimbal 1,0° | gimbal 2,0° |
+|---|---|---|---|---|
+| RTK 2 cm | **0,04 m** | 0,52 m | 1,01 m | 1,94 m |
+| RTK 5 cm | 0,05 m | 0,50 m | 0,95 m | 1,91 m |
+| GPS 0,5 m | 0,42 m | 0,62 m | 1,05 m | 1,88 m |
+| GPS 1,5 m | 1,08 m | 1,28 m | 1,51 m | 2,32 m |
+| GPS 3 m | 2,33 m | 2,38 m | 2,55 m | 3,12 m |
+
+**El término dominante no es el GPS, es el ángulo del gimbal.** Con RTK perfecto y 1° de
+error angular el resultado empeora 25 veces. Es puro brazo de palanca: a 60 m de
+distancia, 1° son 1,05 m, y la tabla da 1,01 m. No hay nada que ajustar, es geometría.
+
+### Pero lo que pide el BIM son dimensiones, no coordenadas
+
+Medir **un lado de 20 m del edificio**, que es lo que de verdad importa:
+
+| caso | error en 20 m | relativo |
+|---|---|---|
+| poses perfectas | 0,028 m | 0,1 % |
+| RTK 2 cm + gimbal 0,5° aleatorio | 0,053 m | **0,3 %** |
+| RTK 2 cm + gimbal 1,0° aleatorio | 0,111 m | **0,6 %** |
+| RTK 2 cm + gimbal 1,0° sistemático | 0,094 m | 0,5 % |
+| GPS 1,5 m + gimbal 1,0° aleatorio | 0,269 m | 1,3 % |
+| GPS 1,5 m + gimbal 1,0° sistemático | 0,096 m | 0,5 % |
+
+El error de posición absoluta **se cancela casi entero al medir una distancia entre dos
+puntos próximos**: los dos se desplazan en el mismo sentido. Un error de 1 m en la
+posición del edificio deja la medida de sus 20 m en 11 cm.
+
+Se ve también por qué distinguir el error **sistemático** del **aleatorio**: con GPS de
+1,5 m, si la desviación es común a todas las tomas el error en la medida baja de 1,3 % a
+0,5 %. Un desplazamiento igual para todas las cámaras no deforma nada.
+
+### Conclusión, que corrige lo dicho en el apartado 15
+
+Aquella afirmación —"con el XMP ya se puede triangular sin fotogrametría"— era **cierta a
+medias**, y conviene precisar cuál:
+
+- **Para medir un edificio: sí.** Con RTK y un gimbal razonable, del 0,3 % al 0,6 %, o sea
+  de 5 a 11 cm en 20 m. Suficiente para LOD2 y para LOD3.
+- **Para situarlo en el mundo: no.** Metros de error, que vienen del gimbal.
+- **La fotogrametría sigue ganando** porque refina las orientaciones a partir de las
+  propias imágenes, que es justo lo que los metadatos no pueden dar. Pero deja de ser
+  imprescindible para arrancar.
+
+### Consecuencia práctica
+
+El **Matrice 4E con RTK es el equipo adecuado**, y no tanto por el GPS como parece: el RTK
+por sí solo no arregla nada si el gimbal va a 1°. Lo que más conviene vigilar es la
+**calibración del gimbal**.
+
+Pendiente: una foto original del Matrice 4E, para confirmar que su XMP trae los mismos
+campos y ver si añade los de RTK (`RtkFlag`, `RtkStdLon`, `RtkStdLat`, `RtkStdHgt`), que
+permitirían conocer la precisión real de cada toma en vez de suponerla.
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -772,3 +840,13 @@ total). Documentado en el apartado 15.
 - `GimbalPitchDegree = -90` confirma que las tomas son cenitales por costumbre de vuelo, no por casualidad: es justo el caso que rompe la calibración monocular.
 - **El dron es un Mini 3 Pro, no el Matrice 4E** que se había dicho. Pendiente de aclarar.
 - No se logró validar la escala con objetos de la propia foto (coches clásicos de medidas desconocidas, ajuste del ruedo fallido). No se publica ningún número de esos.
+
+### 2026-09-18 — ¿Metadatos o fotogrametría? Medido, y corrige lo anterior
+El usuario vuela los dos drones, sobre todo el Matrice 4E. Medido en el apartado 16 cómo
+se propaga el error de la pose. El término dominante es el **ángulo del gimbal**, no el
+GPS: a 60 m, 1° son 1 m. Pero al medir una distancia entre dos puntos próximos el error
+se cancela casi entero, y con RTK quedan del 0,3 al 0,6 % — de 5 a 11 cm en 20 m.
+
+Queda matizado el apartado 15: los metadatos bastan para **medir** un edificio, no para
+**situarlo**. La fotogrametría sigue siendo mejor, pero ya no es imprescindible para
+empezar.
