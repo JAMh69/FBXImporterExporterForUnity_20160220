@@ -318,6 +318,97 @@ interfaz HTML como capa de anotación sobre un servidor local — que ya tiene u
 
 ---
 
+## 12. Datos reales: fotos de dron de un pueblo (18/09/2026)
+
+El usuario aporta cinco fotos de dron de un pueblo, "representativas de cómo serán los
+datos". Cambian el diagnóstico del proyecto, así que se documentan las mediciones.
+
+### Lo que se midió sobre las fotos reales
+
+| foto | segmentos | vp | focal estimada (normalizada a 1000 px de ancho) | campo |
+|---|---|---|---|---|
+| 3 (casi cenital) | 449 | 3 | 3051 px | 31° |
+| 4 (oblicua) | 478 | 3 | **714 px** | 70° |
+| 5 (casi cenital) | 756 | 3 | 3051 px | 19° |
+| 6 (oblicua) | 573 | 3 | **605 px** | 79° |
+| 7 (casi cenital) | 459 | 3 | 2224 px | 25° |
+
+**Es la misma cámara en las cinco.** Que la focal estimada varíe de 605 a 3051 px
+demuestra por sí solo que la calibración no es fiable en este material. Recortar un solo
+edificio tampoco lo arregla: sobre recortes individuales el rango sigue siendo 807-2435.
+
+### Por qué falla: medido, no supuesto
+
+Barrido sobre la escena sintética de verdad conocida, subiendo la cámara e inclinándola
+para mantener el edificio centrado (focal real 620 px):
+
+| altura | picado | segmentos | error de focal |
+|---|---|---|---|
+| 1,6 m | −12° | 78 | 1,6 % |
+| 6 m | 4° | 79 | **0,2 %** |
+| 12 m | 24° | 78 | 1,2 % |
+| 20 m | 43° | 118 | 1,3 % |
+| 35 m | 62° | 111 | 2,9 % |
+| 60 m | 74° | 29 | **68,7 %** |
+| 100 m | 80° | 15 | 58,7 % |
+
+**El método aguanta hasta unos 60° de picado y se derrumba a partir de 70°.** La causa es
+geométrica, no un fallo de implementación: cuanto más cenital es la toma, menos fachada se
+ve. Sin aristas verticales visibles nada sujeta la dirección vertical, y además las líneas
+del suelo se vuelven casi paralelas en la imagen, con lo que su punto de fuga se va al
+infinito y la fórmula `(u−pp)·(v−pp) = −f²` queda malcondicionada: pequeños errores en la
+posición del punto de fuga producen errores enormes en `f`.
+
+La escena sintética exagera la caída de segmentos porque el edificio de prueba no tiene
+cubierta modelada. En las fotos reales ocurre lo contrario y es más engañoso: hay **muchos**
+segmentos (756 en la foto 5), pero son todos aristas de cubierta en orientaciones diversas
+y apenas hay verticales. Muchos datos, ninguna restricción útil.
+
+### Lo que funciona bien
+
+La extracción de aristas rectas. Sobre las fotos reales encuentra limpiamente los
+caballetes, los aleros y los bordes largos de las naves. Ese detector es un activo que
+sirve en cualquier camino que se tome después.
+
+### Lo que no funciona
+
+Los planos candidatos. Están pensados para **un edificio que llena el encuadre**; en la
+vista de un pueblo generan cuadriláteros enormes que unen el alero de una casa con el
+borde de una carretera cincuenta metros más allá. No es cuestión de ajustar el umbral.
+
+### Consecuencia para el proyecto
+
+Para material aéreo de varios edificios, la reconstrucción monocular de una vista no es
+la herramienta. Lo que pide este dato es **fotogrametría multivista** (SfM + MVS: OpenDroneMap,
+COLMAP, Metashape, Pix4D), que resuelve calibración, poses y escala con el GPS del EXIF, y
+entrega nube de puntos, MDS y ortofoto. A partir de ahí:
+
+1. Huellas de edificio desde el modelo digital de superficies y la ortofoto.
+2. **Planos de cubierta por ajuste RANSAC en 3D sobre la nube** — aquí "plano" sí es un plano, ni una mancha de color ni un cuadrilátero inventado.
+3. Semántica (cubierta, fachada, buhardilla, chimenea): **aquí es donde el modo LEARN tiene su valor real**, aplicado a segmentos 3D en vez de a píxeles.
+4. IFC con IfcOpenShell.
+
+La geometría monocular sigue siendo útil para **tomas oblicuas de un edificio concreto**
+(las fotos 4 y 6 caen en ese rango), como complemento, no como vía principal.
+
+### El EXIF es la pieza que falta
+
+Las copias subidas por el chat llegan **sin EXIF y redimensionadas a 1500×1124**. Comprobado
+a nivel de bytes: no hay marcador APP1, solo JFIF e ICC. La información no se puede
+recuperar de esas copias, hay que partir de los originales.
+
+Y es decisiva, porque los tres datos que el sistema estima mal vienen dados en el original:
+
+| dato | hoy | en el EXIF/XMP del original |
+|---|---|---|
+| Focal | se estima, con 605-3051 px de dispersión | `FocalLength` + tamaño de sensor → exacta |
+| Escala | altura de cámara tecleada a mano | `RelativeAltitude` del XMP de DJI |
+| Dirección vertical | se estima del punto de fuga vertical | `GimbalPitchDegree`, `GimbalRollDegree` |
+
+Con esos tres valores **no hay que calibrar nada**, y el problema del picado desaparece.
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -387,3 +478,12 @@ Hallazgos de la verificación:
 - La focal pasa de un 8 % de error en JavaScript a un 0,6-2,5 % en OpenCV. Queda cumplido el primer objetivo de la Fase A sin cambiar de método.
 - La escena sintética de prueba tenía un defecto: el suelo se dibujaba envolviendo la cámara y tapaba el cielo, porque no se comprobaba que los vértices estuvieran delante del objetivo. Corregido; las cifras de detección anteriores a esa corrección no son válidas.
 - Descartada una mejora del horizonte (forzarlo a pasar por el punto de fuga horizontal): es la misma recta por construcción. Resultado negativo, anotado para no repetirlo.
+
+### 2026-09-18 — Fotos reales de dron: el supuesto de partida no se sostiene
+Cinco fotos de dron de un pueblo. Documentado en el apartado 12. Resumen: el detector de
+aristas funciona bien; la calibración monocular se derrumba por encima de 70° de picado
+(medido con un barrido de altura sobre escena de verdad conocida); el detector de planos
+no sirve en vistas con muchos edificios. Para este material la vía correcta es
+fotogrametría multivista, y la geometría monocular pasa a ser complemento para tomas
+oblicuas de un edificio concreto. El EXIF de los originales (focal, altitud relativa,
+cabeceo del gimbal) elimina de raíz los tres términos peor estimados.
