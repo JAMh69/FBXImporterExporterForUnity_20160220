@@ -409,6 +409,90 @@ Con esos tres valores **no hay que calibrar nada**, y el problema del picado des
 
 ---
 
+## 13. Anotación multivista: marcar deja de ser seguir
+
+Escrito el 18/09/2026, tras saber que los datos son de un **DJI Matrice 4E** con solape
+del 70 % horizontal y 80 % vertical, y que el objetivo principal es **un edificio
+concreto**.
+
+### El cambio de concepto
+
+La propuesta del usuario era marcar el contorno en el primer fotograma y en varios más, y
+que el programa lo siguiera. Con las posiciones de cámara conocidas hay una versión mucho
+mejor de esa misma idea:
+
+| | seguimiento (`tracking.py`) | triangulación (`multiview.py`) |
+|---|---|---|
+| Qué hace | arrastra la marca de una foto a la siguiente | corta los rayos de dos o más marcas |
+| Error | se acumula en cadena | **no se acumula**: cada punto es independiente |
+| Necesita | movimiento pequeño entre tomas | **ángulo grande** entre tomas |
+| Da | una marca 2D en otra foto | **un punto 3D en metros** |
+| Sirve para | vídeo | fotos de una misión con solape |
+
+Con solape del 70 % el salto entre fotos consecutivas es grande, que es justo lo que el
+seguimiento lleva peor y lo que la triangulación lleva mejor. Y a la inversa: sabiendo el
+punto 3D, se sabe dónde cae en **todas** las fotos sin seguir nada.
+
+### Cuánto error, medido
+
+Edificio de 20 × 10 m y 11 m de alto, dron a 45 m, vuelo circular de 60 m de radio, foto
+de 4000 px. Error mediano en la posición 3D según en cuántas fotos se marca y con cuánta
+precisión se pincha con el ratón:
+
+| marcas | 1 px | 2 px | 4 px | 8 px |
+|---|---|---|---|---|
+| 2 | 4,7 cm | 9,3 cm | 19,2 cm | 36,8 cm |
+| 3 | 2,8 cm | 5,5 cm | 10,7 cm | 21,4 cm |
+| 4 | 2,3 cm | 5,0 cm | 9,7 cm | 19,0 cm |
+| 6 | 1,9 cm | 4,1 cm | 8,1 cm | 15,8 cm |
+| 8 | 1,7 cm | 3,2 cm | 6,8 cm | 13,8 cm |
+
+**Con marcar en tres fotos con precisión normal de ratón se obtienen 5 cm**, que sobra
+para LOD2 y llega para LOD3.
+
+### El ángulo importa mucho más que el número de fotos
+
+Dos marcas, 2 px de error, variando el ángulo entre las dos tomas:
+
+| ángulo | error |
+|---|---|
+| 2° | **326 cm** |
+| 5° | 139 cm |
+| 10° | 67 cm |
+| 20° | 33 cm |
+| 45° | 15 cm |
+| 90° | 9,5 cm |
+| 120° | 7,9 cm |
+
+Dos tomas separadas 90° dan 9,5 cm; las mismas dos marcas en tomas separadas 2° dan más de
+3 metros. **Un factor 35.** Marcar en fotos consecutivas de una misión es casi inútil.
+
+**Regla de diseño para la interfaz, que se deriva de esto**: cuando el usuario marca algo
+en una foto, el programa **no** debe ofrecerle la siguiente, sino la toma *más separada
+angularmente* que siga viendo ese elemento. Y debe enseñar el error de reproyección de cada
+marca: si una reproyecta a 40 px, esa marca está mal puesta y hay que rehacerla.
+
+### Los módulos
+
+```
+vision_teach/multiview.py    Camera con pose, triangulación con refinado no lineal,
+                             error de reproyección, propagación a todas las fotos,
+                             ajuste de planos por RANSAC e inclinación del plano
+vision_teach/colmap.py       lectura de cameras.txt / images.txt de COLMAP y ODM
+tests/test_multiview.py      14 pruebas
+tests/test_colmap.py         4 pruebas, incluida la ida y vuelta del cuaternión
+```
+
+`fit_plane` ajusta planos **de verdad**, a puntos 3D. Y `plane_angle` da su inclinación:
+0° horizontal, 90° fachada, y los valores intermedios son faldones de cubierta — que es lo
+que domina en una foto de dron y lo que la geometría monocular no sabía tratar.
+
+El DLT se refina siempre con Gauss-Newton sobre el error de reproyección: el DLT minimiza
+un residuo algebraico que no es el error en píxeles, y sin refinar una vista muy oblicua
+sesga el resultado.
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -487,3 +571,15 @@ no sirve en vistas con muchos edificios. Para este material la vía correcta es
 fotogrametría multivista, y la geometría monocular pasa a ser complemento para tomas
 oblicuas de un edificio concreto. El EXIF de los originales (focal, altitud relativa,
 cabeceo del gimbal) elimina de raíz los tres términos peor estimados.
+
+### 2026-09-18 — Anotación multivista por triangulación
+Datos reales: DJI Matrice 4E, solape 70/80 %, objetivo principal un edificio concreto.
+Escritos `multiview.py` y `colmap.py` con 18 pruebas. Documentado en el apartado 13.
+Hallazgo principal: marcar en tres fotos con 2 px de precisión da 5 cm de error en 3D,
+pero el ángulo entre tomas pesa mucho más que el número de tomas (factor 35 entre 2° y
+90°). De ahí sale una regla de interfaz: ofrecer para la segunda marca la foto más
+separada angularmente, no la siguiente.
+
+Pendiente de confirmar con el usuario: especificaciones del Matrice 4E (saldrán del EXIF,
+no de mi memoria) y si su vídeo lleva archivo .SRT de telemetría, que haría las veces de
+EXIF y permitiría usar vídeo sin perder la escala.
