@@ -570,6 +570,98 @@ fotos sueltas siguen siendo mejores que el vídeo por una razón: conservan el E
 
 ---
 
+## 15. Una foto original: todo lo que faltaba (18/09/2026)
+
+`CCO_Pedraza_2024.zip` → `DJI_0763.JPG`, 22 MB, **8064 × 6048** (48,8 Mpx), con EXIF y XMP
+intactos. Es la primera foto original recibida y resuelve varias incógnitas.
+
+### El dron no es el que creíamos
+
+`drone-dji:DroneModel = Mini 3 Pro`, cámara `FC3582`. El usuario había dicho **Matrice
+4E**. O tiene los dos aparatos, o las fotos del pueblo salieron de otro vuelo. **Hay que
+preguntárselo**: el modelo condiciona el sensor y con él la escala.
+
+### Confirmada la lectura de la focal del vídeo
+
+| EXIF | valor |
+|---|---|
+| `FocalLength` | 6,72 mm |
+| `FocalLengthIn35mmFilm` | **24** |
+| `FNumber` | 1,7 (coincide con `fnum: 170` del SRT) |
+| `DigitalZoomRatio` | 1,0 |
+
+`focal_len : 240` del `.SRT` **son 24,0 mm equivalentes**, como se había supuesto. La
+interpretación era correcta.
+
+### Pero queda un 4 % sin resolver
+
+`FocalLengthIn35mmFilm` puede referirse al **ancho** de un fotograma de 35 mm (36 mm) o a
+su **diagonal** (43,27 mm). Según cuál sea:
+
+| convención | focal | GSD a 78 m | huella |
+|---|---|---|---|
+| horizontal | 5376 px | 14,51 mm/px | 117,0 × 87,8 m |
+| diagonal | 5591 px | 13,95 mm/px | 112,5 × 84,4 m |
+
+**Un 4 % de diferencia, que va directo a todas las medidas.** Una sola foto no permite
+decidir. Se resuelve de dos maneras: midiendo una distancia conocida en el terreno, o
+dejando que la fotogrametría ajuste la focal con muchas imágenes. Por eso `photo.py`
+**exige la convención como parámetro explícito** en vez de esconder una suposición.
+
+Se intentó resolverlo midiendo objetos de la propia foto y **no se consiguió**: los coches
+son clásicos de un concurso de elegancia, con medidas que no se pueden dar por sabidas, y
+el ajuste automático del ruedo circular salió con circularidad 0,43 porque la segmentación
+por color se lleva también los prados de alrededor. No se da ningún número de esos: una
+medida que no se puede defender es peor que ninguna.
+
+### Las fotos sí traen los ángulos del gimbal
+
+Lo que le falta al `.SRT` del vídeo está en el XMP de las fotos:
+
+```
+GimbalPitchDegree = -90.00     GimbalYawDegree = +67.50     GimbalRollDegree = +0.00
+FlightPitchDegree = -0.30      FlightYawDegree = +73.40     FlightRollDegree = +0.70
+RelativeAltitude  = +78.000    AbsoluteAltitude = +1101.840
+GpsLatitude = +40.857202170    GpsLongitude = -4.133570191
+GpsStatus = Invalid            SurveyingMode = 0            AltitudeType = RtkAlt
+```
+
+**`GimbalPitchDegree = -90` confirma el diagnóstico del apartado 12**: es una toma
+perfectamente cenital, justo el caso donde la calibración monocular por puntos de fuga se
+derrumba. No era mala suerte: es como vuela.
+
+`GpsStatus = Invalid` (y `GPSStatus = V` en el EXIF) conviene verificarlo con el usuario.
+Las coordenadas son plausibles —Pedraza, Segovia— pero si el GPS no tenía solución válida,
+la posición absoluta no es fiable.
+
+### Consecuencia: se puede triangular sin fotogrametría
+
+Con posición, altura y los tres ángulos del gimbal, **una foto suelta ya da una cámara con
+pose completa**. Dos fotos de un edificio bastan para triangular, sin instalar COLMAP.
+
+`vision_teach/photo.py` hace eso. Verificado sobre la foto real:
+
+| comprobación | resultado |
+|---|---|
+| Eje óptico en toma cenital | (0, 0, −1) exacto |
+| Punto del suelo bajo el dron | cae en el centro exacto de la imagen |
+| 20 m sobre el terreno | 1378,5 px, exactamente lo predicho |
+
+Es una pose **aproximada**: la limita la precisión del GPS, del orden de metros sin RTK.
+Sirve para arrancar, para descartar tomas inútiles y para dar medidas con su
+incertidumbre. La fotogrametría después la refina.
+
+### Por qué las fotos son mejores que el vídeo
+
+| | foto | vídeo |
+|---|---|---|
+| Posición y altura | sí | sí (`.SRT`) |
+| **Ángulos del gimbal** | **sí** | **no** |
+| Resolución | 48,8 Mpx | 8,3 Mpx (4K) |
+| Pose sin fotogrametría | **sí** | no |
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -669,3 +761,14 @@ recorrido en 2 s) y el otro sí vale (70 m, 39° barridos).
 
 Las fotos siguen llegando sin EXIF por el chat, comprobado a nivel de bytes en las ocho
 recibidas. Para el EXIF hay que usar Drive.
+
+### 2026-09-18 — Primera foto original: pose de cámara sin fotogrametría
+`DJI_0763.JPG` con EXIF y XMP intactos. Escrito `vision_teach/photo.py` (17 pruebas, 71 en
+total). Documentado en el apartado 15.
+
+- Confirmado que `focal_len: 240` del SRT son 24 mm equivalentes.
+- Queda sin resolver un 4 %: `FocalLengthIn35mmFilm` puede ser respecto al ancho o a la diagonal del fotograma de 35 mm. La convención es ahora un parámetro explícito.
+- Las fotos traen los ángulos del gimbal; el SRT del vídeo no. Con ellos se construye la pose completa y se puede triangular sin COLMAP.
+- `GimbalPitchDegree = -90` confirma que las tomas son cenitales por costumbre de vuelo, no por casualidad: es justo el caso que rompe la calibración monocular.
+- **El dron es un Mini 3 Pro, no el Matrice 4E** que se había dicho. Pendiente de aclarar.
+- No se logró validar la escala con objetos de la propia foto (coches clásicos de medidas desconocidas, ajuste del ruedo fallido). No se publica ningún número de esos.
