@@ -245,6 +245,58 @@ Prompt sugerido:
 
 ---
 
+## 10. La otra línea de trabajo: AUTO3D (Python, ChatGPT)
+
+Analizado el 18/09/2026 a partir de `AUTO3D_codigo.zip` (733 líneas de Python).
+
+### Qué es
+App de escritorio **Python + PyQt6 + OpenCV + scikit-learn**, empaquetada como `.exe`
+con PyInstaller. Arquitectura: `app.py` (arranque y bloqueo de sesión),
+`vision_teach/{ui,engine,detection,learning,storage,migration}.py`, más 211 líneas de tests.
+
+### El hallazgo importante: las dos apps aprenden cosas distintas
+
+Esto no es un solapamiento, es una división del trabajo que encaja:
+
+| | AUTO3D (Python) | AUTO3D_claude (HTML) |
+|---|---|---|
+| **Qué aprende** | **cómo mirar**: un Random Forest predice los umbrales de Canny y la tolerancia de color a partir del contexto de la imagen | **qué está mirando**: un softmax clasifica la región como fachada, suelo, cubierta, hueco… |
+| Supervisión | débil e indirecta: de la región que marcas se *mide* el contraste y la dispersión de color, y eso se usa como objetivo | directa: la clase que tú eliges es la etiqueta |
+| "Arista" significa | contorno de Canny de ≥12 px (no necesariamente recto) | segmento recto con extremos, agrupado por punto de fuga |
+| "Plano" significa | región de color parecido en espacio Lab (2D) | cuadrilátero sostenido por aristas reales, con normal 3D |
+| Geometría 3D | **ninguna** | puntos de fuga, focal, horizonte, reconstrucción métrica |
+| Seguimiento entre frames | **ninguno**: se reanota cada fotograma | Lucas-Kanade + keyframes interpolables |
+| Navegación de vídeo | solo hacia delante (`capture.read()`), no se puede retroceder | salto libre a cualquier fotograma |
+| Editar una anotación | solo *deshacer la última* | arrastrar cualquier vértice en cualquier fotograma |
+| Persistencia | **muy sólida**: JSON atómico, identidad del archivo por SHA-256, bloqueo de sesión, registro de auditoría en Markdown en hilo aparte | débil: `localStorage` + exportación manual |
+| Tests | 211 líneas (persistencia, vídeo, aprendizaje, Qt) | verificación en navegador, sin suite automatizada |
+| Camino a IFC | abierto (IfcOpenShell es Python) | cerrado (no existe en JS) |
+
+### Lo que hay que copiarle sí o sí
+
+1. **Calibración automática de filtros.** Mis umbrales de Canny son deslizadores que el usuario toca a ciegas; los suyos se aprenden de las propias marcas del usuario. Es una idea mejor que la mía y es portable a JS: el descriptor de contexto son 10 valores (media y desviación Lab + percentiles 25/50/75/90 del gradiente) y el modelo puede ser una regresión en lugar de un Random Forest.
+2. **Identidad del archivo por SHA-256.** Reabres el mismo vídeo aunque lo hayas renombrado y recuperas tus marcas. Yo pierdo todo si no exporto el proyecto a mano.
+3. **Escritura atómica y registro de auditoría.** Escribir a temporal y `os.replace`; nunca sobrescribir un dataset ilegible con uno vacío.
+4. **Espacio Lab** para la similitud de color, en lugar del RGB/HSV que uso yo.
+5. **Entrenar antes de confirmar**: si el entrenamiento falla, no se ha guardado nada a medias.
+
+### Lo que le falta para el objetivo BIM
+
+Su propio README lo dice sin adornos: *"no infiere planitud física, profundidad ni
+geometría 3D"*. Sus planos son manchas de color. Sin puntos de fuga, sin calibración de
+cámara y sin reconstrucción no hay camino a BIM, por buena que sea la ingeniería del resto.
+Tampoco tiene seguimiento entre fotogramas, que es un requisito explícito del proyecto.
+
+### Conclusión
+
+La ingeniería de la app Python es mejor que la mía. La visión geométrica de la mía no
+existe en la suya. El destino natural es **un motor Python** (OpenCV + scikit-learn +
+IfcOpenShell para el IFC final) **con la geometría de AUTO3D_claude portada a él**, y la
+interfaz HTML como capa de anotación sobre un servidor local — que ya tiene un
+`iniciar.cmd` donde encajarlo.
+
+---
+
 ## 9. Registro
 
 ### 2026-09-18 — v0.1, primera versión funcional (Claude)
@@ -261,3 +313,9 @@ Errores encontrados y corregidos durante la verificación en navegador:
 - Con 8-10 planos candidatos rellenos, el lienzo tapaba la foto. Ahora solo se rellena el candidato bajo el ratón.
 
 Pendiente inmediato: fusionar con la línea de trabajo paralela de ChatGPT en `AUTO3D`.
+
+### 2026-09-18 — Análisis de la línea Python de ChatGPT
+Leído `AUTO3D_codigo.zip` completo. Documentada la comparación en el apartado 10.
+Conclusión: las dos apps aprenden cosas distintas y complementarias (calibración de
+filtros frente a semántica + geometría). Pendiente la decisión del usuario sobre cómo
+unificar las dos líneas.
