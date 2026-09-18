@@ -4,7 +4,38 @@
   'use strict';
   var E = A.export = {};
 
+  /* Dentro de un iframe (la version publicada en web) el navegador anula las
+     descargas sin avisar. En ese caso se abre un panel con el contenido para
+     copiarlo a mano, en lugar de que el boton no haga nada. */
+  function embedded() {
+    try { return window.self !== window.top; } catch (e) { return true; }
+  }
+  E.textPanel = function (name, text) {
+    var old = document.getElementById('a3dTextPanel');
+    if (old) old.remove();
+    var d = document.createElement('div');
+    d.id = 'a3dTextPanel';
+    d.innerHTML =
+      '<div class="tp-box"><div class="tp-head"><b>' + name + '</b>' +
+      '<span>' + (text.length / 1024).toFixed(1) + ' KB</span>' +
+      '<button class="tp-copy">copiar</button><button class="tp-close">cerrar</button></div>' +
+      '<textarea readonly></textarea>' +
+      '<div class="tp-foot">Este navegador no permite descargar archivos desde una pagina incrustada. ' +
+      'Copia el contenido y guardalo como <b>' + name + '</b>.</div></div>';
+    d.querySelector('textarea').value = text;
+    d.querySelector('.tp-close').onclick = function () { d.remove(); };
+    d.querySelector('.tp-copy').onclick = function () {
+      var ta = d.querySelector('textarea');
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      if (!ok && navigator.clipboard) { navigator.clipboard.writeText(text); ok = true; }
+      d.querySelector('.tp-copy').textContent = ok ? 'copiado' : 'copia manual';
+    };
+    document.body.appendChild(d);
+  };
   E.download = function (name, text, mime) {
+    if (embedded()) { E.textPanel(name, text); A.log('descarga bloqueada por el navegador: abierto panel para copiar ' + name, 'w'); return; }
     var blob = new Blob([text], { type: mime || 'application/octet-stream' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = name; document.body.appendChild(a); a.click();

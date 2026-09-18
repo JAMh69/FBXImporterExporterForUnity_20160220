@@ -8,7 +8,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font:13px/1.45 "Segoe UI",Roboto,system-ui,sans-serif;background:var(--bg);color:var(--fg);overflow:hidden}
 button,select,input,textarea{font:inherit;color:inherit}
-#app{display:grid;grid-template-columns:288px 1fr 264px;grid-template-rows:38px 1fr 104px;height:100vh}
+#app{display:grid;grid-template-columns:288px 1fr 264px;grid-template-rows:38px 1fr 104px;height:100%}
 header{grid-column:1/4;display:flex;align-items:center;gap:10px;padding:0 10px;background:var(--bg2);border-bottom:1px solid var(--line)}
 header h1{font-size:14px;margin:0;letter-spacing:.14em;font-weight:600}
 header h1 span{color:var(--acc)}
@@ -65,3 +65,24 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #overlayMsg{position:absolute;right:8px;top:8px;background:rgba(10,13,18,.9);border:1px solid var(--acc);border-radius:5px;padding:5px 9px;font-size:11px;display:none}
 .badge{display:inline-block;padding:1px 6px;border-radius:9px;background:#0e1b2c;border:1px solid var(--line);font-size:10px;color:var(--fg2)}
 hr{border:none;border-top:1px solid var(--line);margin:8px 0}
+
+/* panel de copia cuando el navegador bloquea las descargas */
+#a3dTextPanel{position:fixed;inset:0;background:rgba(6,9,13,.78);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+#a3dTextPanel .tp-box{background:var(--bg2);border:1px solid var(--acc);border-radius:8px;width:min(720px,100%);max-height:80%;display:flex;flex-direction:column}
+#a3dTextPanel .tp-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+#a3dTextPanel .tp-head span{flex:1;color:var(--fg2);font-size:11px}
+#a3dTextPanel textarea{flex:1;min-height:240px;border:0;border-radius:0;background:#0b0d11;font:11px/1.4 Consolas,monospace;resize:none}
+#a3dTextPanel .tp-foot{padding:8px 10px;color:var(--fg2);font-size:11px;border-top:1px solid var(--line)}
+
+/* pantallas estrechas: los paneles se apilan bajo el lienzo */
+@media (max-width:900px){
+  html,body{overflow:auto}
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto minmax(300px,46vh) auto auto;height:auto;min-height:100%}
+  header{grid-column:1;height:auto;flex-wrap:wrap;padding:8px 16px;gap:6px}
+  header h1{width:100%}
+  #left,#right{grid-column:1;overflow:visible;border:0;border-bottom:1px solid var(--line);padding:10px 16px}
+  #stage{min-height:300px}
+  #timeline{grid-column:1;padding:10px 16px}
+  .tl-row{flex-wrap:wrap}
+  #objlist{max-height:none}
+}
