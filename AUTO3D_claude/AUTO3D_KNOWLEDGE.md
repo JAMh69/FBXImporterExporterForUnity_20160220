@@ -730,6 +730,87 @@ permitirían conocer la precisión real de cada toma en vez de suponerla.
 
 ---
 
+## 17. El vuelo bueno: RTK, órbita y 1479 disparos (18/09/2026)
+
+El usuario aporta los archivos auxiliares RTK/PPK de un vuelo del Matrice 4E:
+`.MRK`, `.RTK`, `.NAV` y `.pbk`. Es, con diferencia, el mejor material recibido.
+
+### Qué es cada archivo
+
+| archivo | contenido |
+|---|---|
+| `.MRK` | **una línea por disparo**: posición RTK en el instante exacto de la exposición, con su desviación típica. Lo importante. |
+| `.NAV` | efemérides en RINEX 3.05 |
+| `.RTK` | observaciones crudas del receptor, en formato propio de DJI (no empieza por `0xd3`, así que **no es RTCM3**) |
+| `.pbk` | 29 bytes: solo el nombre del `.RTK` |
+
+Formato de una línea del `.MRK`:
+
+```
+1  301666.905683  [2360]  54,N  162,E  84,V
+   40.33554262,Lat  -3.87508693,Lon  716.819,Ellh
+   0.118401, 0.105962, 0.212182  50,Q
+```
+
+disparo · segundo de la semana GPS · [semana] · brazo de antena en mm (N, E, V) ·
+latitud · longitud · altura elipsoidal · **desviación típica en m (N, E, V)** · indicador.
+
+### El vuelo 0002, medido
+
+| | |
+|---|---|
+| Disparos | **1479** en 14,1 min, uno cada 0,55 s (1 sin foto) |
+| Recorrido | 1028 m en una extensión de solo 45 × 74 × 7,3 m |
+| Ángulo barrido | **167°** |
+| Acimut cubierto | **100 % de los doce sectores** |
+| Distancia al centro | 6,2 a 42 m (mediana 20) |
+| Precisión mediana | **N 5,3 cm · E 4,3 cm · V 6,5 cm** |
+| Peor caso | N 11,8 · E 10,6 · V 21,2 cm |
+| Indicador | 50 en los 1479 |
+
+Es una **órbita cerrada y cercana** alrededor de un edificio, con posiciones a nivel de
+centímetros. Es exactamente el vuelo que hacía falta y que en el apartado 16 se pedía.
+
+Con esta geometría y esta precisión, una fotogrametría en condiciones da un modelo de
+edificio a nivel centimétrico. El cuello de botella del apartado 16 —el ángulo del
+gimbal— **desaparece**, porque el ajuste de haces recalcula las orientaciones desde las
+propias imágenes.
+
+### El ángulo barrido no basta: hace falta el acimut
+
+Lo descubrió una prueba que fallaba. Una **pasada recta larga barre 35°** y una **órbita
+cerrada 31°**, y sin embargo la recta ve el edificio siempre desde el mismo lado y deja
+caras sin cubrir.
+
+El ángulo dice **cuánta base** hay; el acimut dice **si esa base rodea al objeto**. Hacen
+falta los dos, y `flights.py` no tenía el segundo hasta que la prueba lo destapó.
+
+### El brazo de antena queda sin resolver, a propósito
+
+El `.MRK` trae la corrección antena-cámara: 54, 162 y 84 mm. Son unos 15 cm, **del mismo
+orden que la precisión**, así que aplicarla cuando ya está aplicada, o no aplicarla cuando
+toca, cambia el resultado de forma apreciable. No está confirmado qué entrega DJI.
+
+`mrk.positions` lo deja **desactivado por defecto** y obliga a pedirlo. Se resuelve con una
+comprobación concreta: comparar una línea del `.MRK` con la latitud y longitud del XMP de
+esa misma foto. Si difieren en el brazo, el `.MRK` da la posición de la antena.
+
+### Los módulos
+
+```
+vision_teach/mrk.py        lectura del .MRK, precisión por disparo, acimut,
+                           emparejado con las fotos por numero de disparo  (12 pruebas)
+vision_teach/flights.py    informe de una campaña desde el CSV de metadatos (10 pruebas)
+AUTO3D_metadatos.ps1       extractor para Windows: recorre una carpeta, lee solo
+                           los primeros 128 KB de cada foto y escribe un CSV de KB
+```
+
+El emparejado foto-disparo **va por número de disparo, no por posición en la lista**: en
+este vuelo falta un disparo, y emparejar por orden habría desplazado todo lo que viene
+detrás.
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -850,3 +931,16 @@ se cancela casi entero, y con RTK quedan del 0,3 al 0,6 % — de 5 a 11 cm en 20
 Queda matizado el apartado 15: los metadatos bastan para **medir** un edificio, no para
 **situarlo**. La fotogrametría sigue siendo mejor, pero ya no es imprescindible para
 empezar.
+
+### 2026-09-18 — Archivos RTK/PPK: el primer vuelo realmente bueno
+Escritos `mrk.py` y `flights.py` más el extractor `AUTO3D_metadatos.ps1` (22 pruebas
+nuevas, 93 en total). Documentado en el apartado 17.
+
+El vuelo 0002 es una órbita cerrada de 1479 disparos con RTK a 4-6 cm y 100 % de acimut
+cubierto: con eso la fotogrametría da centímetros y el problema del gimbal desaparece.
+
+Hallazgo de una prueba que falló: el ángulo barrido no distingue una órbita de una pasada
+recta (35° la recta, 31° la órbita) y hacía falta añadir la cobertura de acimut.
+
+Pendiente: una foto de ese mismo vuelo, para resolver si el `.MRK` da la posición de la
+antena o la de la cámara comparándola con el XMP.
