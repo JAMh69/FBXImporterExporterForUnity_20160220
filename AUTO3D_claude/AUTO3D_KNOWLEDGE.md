@@ -493,6 +493,83 @@ sesga el resultado.
 
 ---
 
+## 14. Telemetría de vuelo: el `.SRT` de DJI (18/09/2026)
+
+Confirmado con material real del usuario: los vídeos del dron llevan al lado un `.SRT`
+con **una entrada por fotograma**. Es el equivalente del EXIF para vídeo.
+
+### Qué trae y qué no
+
+Campos presentes en los dos archivos analizados:
+`iso`, `shutter`, `fnum`, `ev`, `ct`, `color_md`, `focal_len`, `dzoom_ratio`, `delta`,
+`latitude`, `longitude`, `rel_alt`, `abs_alt`.
+
+**No trae los ángulos del gimbal.** No es fatal: la fotogrametría calcula la orientación
+por su cuenta. Pero conviene no contar con ellos.
+
+### Dos vuelos reales, dos resultados opuestos
+
+| | DJI_0776 | DJI_0783 |
+|---|---|---|
+| Fotogramas | 59 (2,0 s) | 478 (15,9 s) |
+| Recorrido | **0,0 m** | 70,3 m |
+| Posiciones GPS distintas | **1 de 59** | 149 de 478 |
+| Altura | 93,8 m constante | 93,0 → 53,3 m |
+| Ángulo barrido | **0°** | **39°** |
+| ¿Sirve? | **No** | Sí |
+
+El primero es el dron **parado en el aire**. Dos segundos de vídeo 4K perfectamente
+nítido y **completamente inútil para reconstruir**: sin desplazamiento no hay paralaje y
+no hay nada que triangular. El criterio que importa no es la duración ni la resolución,
+es el **recorrido**.
+
+El segundo sí sirve: 70 m recorridos descendiendo de 93 a 53 m, con 39° barridos sobre el
+terreno. Según la tabla del apartado 13, 39° entre dos tomas da del orden de 15-20 cm; con
+más tomas baja.
+
+### Cuántos fotogramas extraer
+
+De los 478 fotogramas de DJI_0783 no hay que usar 478. Entre fotogramas consecutivos el
+dron se ha movido centímetros y la base es demasiado corta:
+
+| separación | fotogramas |
+|---|---|
+| cada 2 m | 31 |
+| cada 5 m | 14 |
+| cada 10 m | 7 |
+
+**Se selecciona por metros recorridos, no por tiempo.** `dji.select_frames` hace eso.
+
+### La focal, y por qué sigue haciendo falta el EXIF
+
+`focal_len : 240` es constante en los dos vuelos, y `dzoom_ratio : 10000` significa zoom
+1×. Interpretando 240 como **24,0 mm equivalentes a 35 mm**, en un fotograma 4K de 3840 px
+salen **2560 px de focal**.
+
+Ese "interpretando" es el problema: **si DJI escribiera ahí la focal real en vez de la
+equivalente, el valor estaría mal y con él toda la escala.** Se resuelve mirando el EXIF de
+una foto del mismo equipo, donde `FocalLength` y `FocalLengthIn35mmFilm` aparecen por
+separado. Sigue siendo el dato pendiente.
+
+### El módulo
+
+`vision_teach/dji.py` con 12 pruebas. Lee el `.SRT`, da coordenadas locales en metros,
+resume el vuelo diciendo **si sirve o no y por qué**, selecciona fotogramas por distancia y
+calcula el ángulo barrido.
+
+Un detalle del formato real que rompió la primera versión: DJI mete **varios campos en un
+mismo corchete** — `[rel_alt: 93.800 abs_alt: 1048.861]` — así que hay que aislar cada
+grupo y después leer todos sus pares. Y los pares no se pueden buscar sobre la línea
+entera, porque la marca de tiempo `23:04:58.522` se leería como un campo llamado `23`.
+
+### Consecuencia práctica para volar
+
+Para un edificio concreto, **órbita alrededor**. Los 39° de DJI_0783 salieron de un
+descenso en línea; una órbita completa daría 360° y mucha mejor triangulación. Y las
+fotos sueltas siguen siendo mejores que el vídeo por una razón: conservan el EXIF.
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -583,3 +660,12 @@ separada angularmente, no la siguiente.
 Pendiente de confirmar con el usuario: especificaciones del Matrice 4E (saldrán del EXIF,
 no de mi memoria) y si su vídeo lleva archivo .SRT de telemetría, que haría las veces de
 EXIF y permitiría usar vídeo sin perder la escala.
+
+### 2026-09-18 — Telemetría .SRT confirmada con material real
+Escrito `vision_teach/dji.py` (12 pruebas, 52 en total). Documentado en el apartado 14.
+Confirmado que el `.SRT` existe y trae posición, altura y focal, pero **no los ángulos del
+gimbal**. De los dos vuelos analizados uno es inservible (el dron estaba parado: 0 m de
+recorrido en 2 s) y el otro sí vale (70 m, 39° barridos).
+
+Las fotos siguen llegando sin EXIF por el chat, comprobado a nivel de bytes en las ocho
+recibidas. Para el EXIF hay que usar Drive.
