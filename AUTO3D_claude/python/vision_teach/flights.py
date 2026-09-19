@@ -18,7 +18,13 @@ EARTH = 6378137.0
 # una pared vertical es el seno del angulo respecto a la vertical, y justo bajo
 # el dron ese angulo es cero.
 NADIR_LIMIT = -75.     # por debajo de esto se considera toma cenital
-SKY_LIMIT = -10.       # por encima de esto la camara mira al cielo o al horizonte
+SKY_LIMIT = 0.         # a partir de la horizontal, la camara mira al cielo
+HORIZONTAL_LIMIT = -30.  # entre esto y la horizontal, toma frontal de fachada
+
+# El umbral del cielo estuvo en -10 grados y era un error, que destapo el
+# material real: habia vuelos enteros con el gimbal fijo a -9 grados, casi
+# horizontal, que es precisamente la toma que mejor ve una fachada alta. Solo
+# es cielo lo que apunta por encima de la horizontal.
 
 
 def read_csv(path):
@@ -32,7 +38,13 @@ def read_csv(path):
         for row in csv.DictReader(handle):
             for key in numeric:
                 value = (row.get(key) or '').strip()
-                row[key] = float(value) if value not in ('', 'nan') else None
+                # el CSV puede venir con coma decimal si Windows esta en espanol
+                if value.count(',') == 1 and '.' not in value:
+                    value = value.replace(',', '.')
+                try:
+                    row[key] = float(value) if value not in ('', 'nan') else None
+                except ValueError:
+                    row[key] = None
             stamp = (row.get('fecha') or '').strip()
             row['when'] = datetime.fromisoformat(stamp) if stamp else None
             if row.get('GpsLatitude') is not None:
@@ -118,14 +130,17 @@ def classify(pitches):
     nadir = (pitches <= NADIR_LIMIT).mean()
     sky = (pitches >= SKY_LIMIT).mean()
     oblique = ((pitches > NADIR_LIMIT) & (pitches < SKY_LIMIT)).mean()
+    frontal = ((pitches >= HORIZONTAL_LIMIT) & (pitches < SKY_LIMIT)).mean()
     if nadir > .85:
         return 'malla cenital: cubiertas y huellas, sin fachadas'
+    if frontal > .85:
+        return 'casi horizontal: fachada de frente'
     if oblique > .85:
         return 'oblicuo: bueno para fachadas'
     if nadir > .2 and oblique > .2:
         return 'mixto: cenital mas oblicuo, lo ideal'
     if sky > .5:
-        return 'apunta al cielo: poco aprovechable'
+        return 'apunta por encima de la horizontal: poco aprovechable'
     return 'irregular'
 
 
@@ -187,6 +202,22 @@ def warnings(summary):
         out.append(f"sin datos de precision RTK (GpsStatus={summary['gps_status'] or 'vacio'}): "
                    'la posicion absoluta puede tener metros de error')
     return out
+
+
+def find_duplicates(reports):
+    """Vuelos repetidos en dos carpetas: copias en la carpeta de entrega.
+
+    Se comparan por numero de fotos, rango de gimbal y recorrido, no por el
+    nombre de la carpeta, que es justo lo que cambia al copiarlos. Ocupan
+    espacio y, si se procesan dos veces, duplican el trabajo.
+    """
+    groups = {}
+    for report in reports:
+        key = (report['photos'], round(report['travelled']),
+               None if report['pitch_min'] is None else round(report['pitch_min']),
+               None if report['pitch_max'] is None else round(report['pitch_max']))
+        groups.setdefault(key, []).append(report)
+    return [g for g in groups.values() if len(g) > 1]
 
 
 def summarise(path, gap_minutes=20.):

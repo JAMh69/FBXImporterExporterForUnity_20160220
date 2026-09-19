@@ -811,6 +811,77 @@ detrás.
 
 ---
 
+## 18. Explorador de carpetas: 5346 fotos reales analizadas (19/09/2026)
+
+El usuario ejecuta el extractor sobre `E:\005 Territorio Mudejar` y aporta el CSV:
+**5346 fotos con coordenadas, 57 vuelos**. Es el primer retrato completo del material.
+
+### Lo que hay
+
+| | |
+|---|---|
+| Dron | **M4E** (Matrice 4E), cámara `WideCamera` |
+| Posicionamiento | `GpsStatus=RTK`, `AltitudeType=RtkAlt`, `SurveyingMode=1` |
+| Precisión | de **2 mm** a 13 cm según el vuelo |
+| Sitios | Zuera, Zuera ruinas, morat… (Aragón) |
+
+### Los mejores vuelos
+
+| carpeta | fotos | GB | gimbal | recorrido | ángulo | acimut | RTK |
+|---|---|---|---|---|---|---|---|
+| `049_LiveMissionRec` | 337 | 2,4 | −60…35° | 1492 m | **171°** | 100 % | 8,3 cm |
+| `053_Nuevarutadecaptura` | 747 | 6,1 | −90…17° | 553 m | 149° | 100 % | 7,1 cm |
+| `048_Nuevarutadecaptura` | **1380** | 10,0 | −90…19° | 976 m | 146° | 100 % | 6,0 cm |
+| `044_zuera002` | 212 | 1,5 | −90…−60° | 1020 m | 125° | 100 % | **2,0 cm** |
+| `061_morat001` | 249 | 1,7 | −90…−60° | 425 m | 112° | 100 % | **0,2 cm** |
+
+Varios son **mixtos —cenital más oblicuo—, que es la combinación ideal**: cubiertas y
+fachadas en el mismo vuelo.
+
+### Dos errores que solo destapó el material real
+
+**1. El umbral del cielo estaba mal.** Dos vuelos (`058` y `059`, 698 fotos y 4,4 GB) tienen
+el gimbal fijo en **−9°** y mi clasificador los llamaba *"apunta al cielo: poco
+aprovechable"*. Pero −9° es casi horizontal, que es **precisamente la mejor toma para una
+fachada alta**. El umbral estaba en −10° cuando debía estar en 0: solo es cielo lo que
+apunta por encima de la horizontal. Corregido, y añadida la categoría *"casi horizontal:
+fachada de frente"*.
+
+**2. El ángulo barrido dependía de una suposición escondida.** El mismo vuelo daba 167° en
+Python y 6° en JavaScript. La causa: el ángulo se mide respecto a un punto del suelo, y
+"el suelo" no está en el mismo sitio según el dato. Con alturas **relativas al despegue**
+está en cero; con las **elipsoidales del `.MRK`** —que rondan los 716 m— el cero cae 716 m
+por debajo y todos los rayos salen casi paralelos.
+
+Ahora la cota del suelo es **un argumento explícito** en las dos implementaciones, y queda
+dicho que **la cobertura de acimut no depende de esa suposición**: es el indicador robusto.
+
+### Duplicados y desperdicio
+
+- **5 grupos de vuelos duplicados**, 2,8 GB: los mismos vuelos copiados a la carpeta de entrega. Se detectan comparando fotos, gimbal y recorrido, no el nombre de carpeta, que es justo lo que cambia al copiar.
+- **12 vuelos sin aprovechamiento** (238 fotos, 1,2 GB): recorrido nulo o menos de 20° barridos. Cuatro son panoramas —el dron parado girando—, que no sirven para reconstruir por definición.
+
+### El explorador en la app
+
+`js/triage.js` lleva todo esto al navegador. Botón **explorar carpeta**, se elige una
+carpeta y recorre todas sus subcarpetas:
+
+- Lee **solo los primeros 128 KB** de cada foto, que es donde están el EXIF y el XMP. Miles de fotos de 20 MB en segundos.
+- Lee además `.SRT` de vídeo y `.MRK` de RTK.
+- Agrupa en vuelos por carpeta y por saltos de tiempo.
+- Puntúa de 0 a 100 y emite un veredicto con sus motivos.
+- Exporta el informe a CSV.
+
+Un `.SRT` o un `.MRK` **sin su material al lado no se ignora**: describe un vuelo que
+existe, y a veces es lo único que queda de él. El `.MRK` suelto de este proyecto describía,
+él solo, el mejor vuelo recibido.
+
+Lleva un lector de EXIF propio (marcadores JPEG, IFD TIFF) porque solo hacen falta cuatro
+campos y no merecía la pena una dependencia. El tamaño se toma del marcador SOF, no del
+EXIF: una foto recortada conserva el tamaño viejo en sus etiquetas.
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -944,3 +1015,15 @@ recta (35° la recta, 31° la órbita) y hacía falta añadir la cobertura de ac
 
 Pendiente: una foto de ese mismo vuelo, para resolver si el `.MRK` da la posición de la
 antena o la de la cámara comparándola con el XMP.
+
+### 2026-09-19 — Explorador de carpetas en la app, y 5346 fotos reales
+Escrito `js/triage.js` con su interfaz. Documentado en el apartado 18. Analizado el CSV
+real: 57 vuelos, varios mixtos con acimut completo y RTK de milímetros.
+
+Dos errores que solo apareció con datos de verdad: el umbral del cielo estaba en −10° y
+descartaba vuelos casi horizontales que son los mejores para fachadas; y el ángulo barrido
+dependía de dónde se suponía el suelo, dando 167° en Python y 6° en JavaScript para el
+mismo vuelo. Los dos corregidos, y la suposición es ahora explícita.
+
+El extractor de PowerShell escribe en `<carpeta del script>\datos`, dentro del proyecto en
+E:, no en el Escritorio.

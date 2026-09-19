@@ -16,10 +16,24 @@
         3. Mandame el CSV que deja en el Escritorio. Pesa unos pocos KB.
 #>
 
-param([string]$Raiz)
+param([string]$Raiz, [string]$Salida)
 
-$raiz   = if ($Raiz) { $Raiz } else { "E:\005 Territorio Mudejar" }
-$salida = Join-Path ([Environment]::GetFolderPath('Desktop')) 'auto3d_metadatos.csv'
+$raiz = if ($Raiz) { $Raiz } else { "E:\005 Territorio Mudejar" }
+
+# Los resultados se dejan junto al propio script, es decir dentro de la carpeta
+# del proyecto en E:, no en el Escritorio. Si el script se ejecuta desde un
+# sitio donde no se puede escribir, se cae a la carpeta temporal del usuario.
+$carpetaDatos = if ($Salida) { Split-Path -Parent $Salida } else { Join-Path $PSScriptRoot 'datos' }
+try {
+    if (-not (Test-Path -LiteralPath $carpetaDatos)) {
+        New-Item -ItemType Directory -Path $carpetaDatos -Force | Out-Null
+    }
+} catch {
+    $carpetaDatos = $env:TEMP
+    Write-Host "No se puede escribir junto al script; se usara $carpetaDatos" -ForegroundColor Yellow
+}
+$sello  = Get-Date -Format 'yyyyMMdd_HHmm'
+$salida = if ($Salida) { $Salida } else { Join-Path $carpetaDatos "auto3d_metadatos_$sello.csv" }
 
 # si la ruta por defecto no existe, pedirla en vez de fallar
 while (-not (Test-Path -LiteralPath $raiz)) {
@@ -39,7 +53,10 @@ $campos = @(
 )
 
 Write-Host "Buscando fotos en $raiz ..." -ForegroundColor Cyan
-$fotos = Get-ChildItem -LiteralPath $raiz -Recurse -File -Include *.jpg,*.jpeg,*.JPG,*.JPEG -ErrorAction SilentlyContinue
+# -Include con -Recurse cuela archivos que no son fotos, asi que se filtra por
+# extension de forma explicita
+$fotos = Get-ChildItem -LiteralPath $raiz -Recurse -File -ErrorAction SilentlyContinue |
+         Where-Object { $_.Extension -match '^\.(jpg|jpeg)$' }
 Write-Host ("Encontradas {0} fotos." -f $fotos.Count) -ForegroundColor Cyan
 
 $filas = New-Object System.Collections.Generic.List[object]

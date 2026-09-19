@@ -154,8 +154,13 @@ def angular_spread(frames, target=None):
     """Angulo barrido alrededor de un punto del suelo, en grados.
 
     Es la magnitud que gobierna la calidad de la triangulacion, mas que el
-    numero de fotogramas. Si no se da objetivo se toma el punto del suelo bajo
-    el centro del recorrido.
+    numero de fotogramas. **El valor depende de donde se suponga el suelo.**
+    Aqui las alturas son `rel_alt`, es decir sobre el punto de despegue, asi
+    que el suelo esta en cero; en el `.MRK`, que da altura elipsoidal, no lo
+    esta, y por eso `mrk.angular_spread` usa la cota mas baja del vuelo.
+
+    La cobertura de acimut no depende de esta suposicion y es el indicador
+    robusto para distinguir una orbita de una pasada recta.
     """
     xyz = positions(frames)
     if len(xyz) < 2:

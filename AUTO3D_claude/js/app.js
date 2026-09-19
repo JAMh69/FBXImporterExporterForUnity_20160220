@@ -543,11 +543,133 @@
       h.onclick = function () { h.parentNode.classList.toggle('collapsed'); };
     });
 
+    /* explorador de carpeta */
+    $('dirInput').addEventListener('change', function (e) {
+      var files = e.target.files;
+      if (!files || !files.length) return;
+      abrirTriage(files);
+      e.target.value = '';                  // permite reabrir la misma carpeta
+    });
+    $('trCerrar').onclick = function () { $('triage').hidden = true; };
+    $('trCsv').onclick = function () {
+      if (!S.triage) return;
+      A.export.download('auto3d_vuelos.csv', triageCsv(S.triage), 'text/csv');
+    };
+
     /* modelo guardado */
     var m0 = A.learn.load();
     if (m0) { S.model = m0; A.log('modelo recuperado del navegador: ' + m0.samples.length + ' muestras', 'o'); }
     refreshPanels();
     A.log('AUTO3D listo. Arrastra una foto o un video sobre la ventana.', 'o');
+  }
+
+  /* ================= explorador de carpeta ================= */
+  function abrirTriage(files) {
+    var caja = $('triage'), prog = $('trProgreso');
+    caja.hidden = false;
+    prog.hidden = false;
+    $('trCuerpo').innerHTML = '';
+    $('trResumen').textContent = 'leyendo ' + files.length + ' archivos...';
+    var barra = prog.querySelector('.tr-barra > div');
+    var texto = prog.querySelector('.hint');
+    A.log('explorando carpeta: ' + files.length + ' archivos', 'w');
+
+    A.triage.explorar(files, function (hechos, total, nombre) {
+      barra.style.width = (100 * hechos / Math.max(1, total)) + '%';
+      if (hechos % 25 === 0 || hechos === total) {
+        texto.textContent = hechos + ' / ' + total + '   ' + nombre;
+      }
+    }).then(function (informe) {
+      prog.hidden = true;
+      S.triage = informe;
+      pintarTriage(informe);
+      A.log('exploracion terminada: ' + informe.vuelos.length + ' vuelos', 'o');
+    }).catch(function (err) {
+      prog.hidden = true;
+      $('trCuerpo').innerHTML = '<div class="hint e">Error: ' + err.message + '</div>';
+      A.log('error explorando: ' + err.message, 'e');
+    });
+  }
+
+  var CLASE = { excelente: 'excelente', util: 'util', limitado: 'limitado', 'no sirve': 'nosirve' };
+  var ICONO = { video: '\ud83c\udfac', srt: '\ud83d\udccd', mrk: '\ud83d\udce1', fotos: '\ud83d\uddbc' };
+
+  function pintarTriage(inf) {
+    var utiles = inf.vuelos.filter(function (v) { return v.eval.nota >= 55; });
+    var gb = inf.vuelos.reduce(function (s, v) { return s + v.gigas; }, 0);
+    $('trResumen').textContent = inf.vuelos.length + ' vuelos \u00b7 ' + inf.fotos +
+      ' fotos \u00b7 ' + inf.videos + ' v\u00eddeos \u00b7 ' + gb.toFixed(1) + ' GB \u00b7 ' +
+      utiles.length + ' aprovechables';
+
+    var html = '';
+    if (inf.sinXMP) {
+      html += '<div class="hint" style="margin-bottom:9px">' + inf.sinXMP +
+        ' fotos sin XMP de DJI: o no son de dron, o son copias recomprimidas que han perdido los metadatos.</div>';
+    }
+    inf.vuelos.forEach(function (v) {
+      var e = v.eval;
+      html += '<div class="vuelo ' + (CLASE[e.veredicto] || '') + '">';
+      html += '<h4><span class="nota">' + e.nota + '</span>' +
+        '<span>' + (v.nombre ? ICONO[v.clase] + ' ' + v.nombre : nombreCorto(v.carpeta)) + '</span>' +
+        '<span class="ruta">' + e.veredicto + ' \u00b7 ' + e.tipo + '</span></h4>';
+      html += '<div class="datos">';
+      if (v.clase === 'video' || v.clase === 'srt') {
+        html += '<span>fotogramas <b>' + v.n + '</b></span>';
+      } else if (v.clase === 'mrk') {
+        html += '<span>disparos <b>' + v.n + '</b></span>';
+      } else {
+        html += '<span>fotos <b>' + v.n + '</b></span>';
+        if (v.megapixel) html += '<span><b>' + v.megapixel.toFixed(1) + '</b> Mpx</span>';
+      }
+      html += '<span><b>' + v.gigas.toFixed(2) + '</b> GB</span>';
+      if (v.modelo) html += '<span><b>' + v.modelo + '</b></span>';
+      if (v.pitchMin != null) html += '<span>gimbal <b>' + Math.round(v.pitchMin) + '\u00b0 a ' + Math.round(v.pitchMax) + '\u00b0</b></span>';
+      if (v.alturaMin != null && isFinite(v.alturaMin)) html += '<span>altura <b>' + Math.round(v.alturaMin) + ' a ' + Math.round(v.alturaMax) + ' m</b></span>';
+      html += '<span>recorrido <b>' + Math.round(v.recorrido) + ' m</b></span>';
+      html += '<span>\u00e1ngulo <b>' + Math.round(v.angulo) + '\u00b0</b></span>';
+      html += '<span>acimut <b>' + Math.round(e.acimutLleno * 100) + '%</b>' + rosa(v.acimut) + '</span>';
+      if (v.rtk != null) html += '<span>RTK <b>' + (v.rtk * 100).toFixed(1) + ' cm</b></span>';
+      if (v.mrk) html += '<span class="badge">' + v.mrk + '</span>';
+      if (v.srt) html += '<span class="badge">' + v.srt + '</span>';
+      html += '</div>';
+      e.notas.forEach(function (n) { html += '<div class="bien">\u2713 ' + n + '</div>'; });
+      e.avisos.forEach(function (n) { html += '<div class="aviso">\u26a0 ' + n + '</div>'; });
+      html += '</div>';
+    });
+    $('trCuerpo').innerHTML = html;
+  }
+
+  function nombreCorto(ruta) {
+    var p = (ruta || '').split(/[\\/]/);
+    return p[p.length - 1] || ruta || '(ra\u00edz)';
+  }
+
+  /* Rosa de acimut: doce barras, una por sector de 30 grados. De un vistazo se
+     ve si el vuelo rodea al edificio o lo mira siempre desde el mismo lado. */
+  function rosa(sectores) {
+    if (!sectores || !sectores.length) return '';
+    var max = Math.max.apply(null, sectores) || 1, out = '<span class="rosa">';
+    sectores.forEach(function (c) {
+      var h = c ? Math.max(3, Math.round(11 * c / max)) : 2;
+      out += '<i class="' + (c ? 'on' : '') + '" style="height:' + h + 'px"></i>';
+    });
+    return out + '</span>';
+  }
+
+  function triageCsv(inf) {
+    var filas = ['carpeta;tipo;veredicto;nota;fotos;GB;modelo;gimbal_min;gimbal_max;' +
+                 'altura_min;altura_max;recorrido_m;angulo_grados;acimut_pct;rtk_cm;avisos'];
+    inf.vuelos.forEach(function (v) {
+      var e = v.eval;
+      filas.push([v.carpeta + (v.nombre ? '/' + v.nombre : ''), e.tipo, e.veredicto, e.nota,
+        v.n, v.gigas.toFixed(3), v.modelo || '',
+        v.pitchMin != null ? Math.round(v.pitchMin) : '', v.pitchMax != null ? Math.round(v.pitchMax) : '',
+        v.alturaMin != null && isFinite(v.alturaMin) ? Math.round(v.alturaMin) : '',
+        v.alturaMax != null && isFinite(v.alturaMax) ? Math.round(v.alturaMax) : '',
+        Math.round(v.recorrido), Math.round(v.angulo), Math.round(e.acimutLleno * 100),
+        v.rtk != null ? (v.rtk * 100).toFixed(1) : '', e.avisos.join(' | ')].join(';'));
+    });
+    return filas.join('\n');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

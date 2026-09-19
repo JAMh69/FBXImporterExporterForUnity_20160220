@@ -89,6 +89,34 @@ hr{border:none;border-top:1px solid var(--line);margin:8px 0}
   #objlist{max-height:none}
 }
 
+/* informe de exploracion de carpeta */
+#triage{position:fixed;inset:0;background:rgba(6,9,13,.85);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60}
+#triage[hidden]{display:none!important}
+#triage .tr-box{background:var(--bg2);border:1px solid var(--line);border-radius:8px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column}
+#triage .tr-head{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
+#triage .tr-cuerpo{overflow-y:auto;padding:10px 12px}
+#triage .tr-pie{padding:8px 12px;border-top:1px solid var(--line)}
+#triage .tr-prog{padding:8px 12px;display:flex;align-items:center;gap:10px}
+[hidden]{display:none!important}
+#triage .tr-barra{flex:1;height:6px;background:#0b0d11;border-radius:3px;overflow:hidden}
+#triage .tr-barra>div{height:100%;width:0;background:var(--acc);transition:width .15s}
+.vuelo{border:1px solid var(--line);border-left-width:4px;border-radius:6px;padding:9px 11px;margin-bottom:9px;background:var(--bg3)}
+.vuelo.excelente{border-left-color:var(--ok)} .vuelo.util{border-left-color:var(--acc)}
+.vuelo.limitado{border-left-color:var(--warn)} .vuelo\.no{border-left-color:var(--err)}
+.vuelo.nosirve{border-left-color:var(--err);opacity:.72}
+.vuelo h4{margin:0 0 5px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vuelo .nota{font-variant-numeric:tabular-nums;font-weight:700;padding:1px 7px;border-radius:10px;background:#0e1b2c;border:1px solid var(--line)}
+.vuelo.excelente .nota{color:var(--ok)} .vuelo.util .nota{color:var(--acc)}
+.vuelo.limitado .nota{color:var(--warn)} .vuelo.nosirve .nota{color:var(--err)}
+.vuelo .ruta{color:var(--fg2);font-weight:400;font-size:11px}
+.vuelo .datos{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--fg2);margin-bottom:5px}
+.vuelo .datos b{color:var(--fg);font-variant-numeric:tabular-nums}
+.vuelo .aviso{font-size:11px;color:var(--warn);margin-top:2px}
+.vuelo .bien{font-size:11px;color:var(--ok);margin-top:2px}
+.rosa{display:inline-flex;gap:1px;vertical-align:middle;margin-left:4px}
+.rosa i{width:5px;background:var(--line);border-radius:1px;display:block}
+.rosa i.on{background:var(--acc)}
+
 /* la pagina publicada vive dentro de un marco: sin margenes y a toda altura */
 html,body{height:100%;margin:0;background:#12151a}
 </style>
@@ -102,6 +130,7 @@ html,body{height:100%;margin:0;background:#12151a}
     <button id="modeLearn">LEARN</button>
     <label class="badge" style="cursor:pointer">abrir foto/video<input id="file" type="file" accept="image/*,video/*" hidden></label>
     <label class="badge" style="cursor:pointer">abrir proyecto<input id="projFile" type="file" accept=".json" hidden></label>
+    <label class="badge" style="cursor:pointer" title="Recorre una carpeta y sus subcarpetas y clasifica los vuelos">explorar carpeta<input id="dirInput" type="file" webkitdirectory directory multiple hidden></label>
     <button id="btnSaveProj">guardar proyecto</button>
   </header>
 
@@ -244,6 +273,28 @@ html,body{height:100%;margin:0;background:#12151a}
     </div>
   </div>
 
+  <!-- ================= informe de carpeta ================= -->
+  <div id="triage" hidden>
+    <div class="tr-box">
+      <div class="tr-head">
+        <b>Material de vuelo</b>
+        <span id="trResumen" class="hint"></span>
+        <div style="flex:1"></div>
+        <button id="trCsv">exportar CSV</button>
+        <button id="trCerrar">cerrar</button>
+      </div>
+      <div id="trProgreso" class="tr-prog" hidden>
+        <div class="tr-barra"><div></div></div>
+        <span class="hint"></span>
+      </div>
+      <div id="trCuerpo" class="tr-cuerpo"></div>
+      <div class="tr-pie hint">
+        Todo se lee en tu equipo: de cada foto solo los primeros 128 KB, que es donde estan
+        el EXIF y el XMP. Ningun archivo se sube a ningun sitio.
+      </div>
+    </div>
+  </div>
+
   <!-- ================= linea de tiempo ================= -->
   <div id="timeline">
     <div class="tl-row">
@@ -272,5 +323,6 @@ html,body{height:100%;margin:0;background:#12151a}
 <script src="js/tracking.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/exporters.js"></script>
+<script src="js/triage.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
