@@ -32,8 +32,16 @@ try {
     $carpetaDatos = $env:TEMP
     Write-Host "No se puede escribir junto al script; se usara $carpetaDatos" -ForegroundColor Yellow
 }
+# El nombre lleva la carpeta de origen para distinguir campañas de un vistazo:
+# auto3d_metadatos_005 Territorio Mudejar_20260919_1127.csv
+$origen = Split-Path -Leaf $raiz.TrimEnd('\')
+if (-not $origen -or $origen -match '^[A-Za-z]:$') { $origen = $raiz -replace '[:\\/]', '' }
+# los caracteres que Windows no admite en un nombre de archivo se sustituyen
+foreach ($c in [IO.Path]::GetInvalidFileNameChars()) { $origen = $origen.Replace($c, [char]'-') }
+$origen = $origen.Trim()
+
 $sello  = Get-Date -Format 'yyyyMMdd_HHmm'
-$salida = if ($Salida) { $Salida } else { Join-Path $carpetaDatos "auto3d_metadatos_$sello.csv" }
+$salida = if ($Salida) { $Salida } else { Join-Path $carpetaDatos "auto3d_metadatos_${origen}_$sello.csv" }
 
 # si la ruta por defecto no existe, pedirla en vez de fallar
 while (-not (Test-Path -LiteralPath $raiz)) {

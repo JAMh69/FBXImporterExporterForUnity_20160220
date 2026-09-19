@@ -553,7 +553,7 @@
     $('trCerrar').onclick = function () { $('triage').hidden = true; };
     $('trCsv').onclick = function () {
       if (!S.triage) return;
-      A.export.download('auto3d_vuelos.csv', triageCsv(S.triage), 'text/csv');
+      A.export.download(nombreInforme(S.triage), triageCsv(S.triage), 'text/csv');
     };
 
     /* modelo guardado */
@@ -654,6 +654,16 @@
       out += '<i class="' + (c ? 'on' : '') + '" style="height:' + h + 'px"></i>';
     });
     return out + '</span>';
+  }
+
+  /* El nombre lleva la carpeta explorada y la fecha, para poder guardar varias
+     campañas juntas sin confundirlas: auto3d_vuelos_Territorio Mudejar_2609.csv */
+  function nombreInforme(inf) {
+    var raiz = (inf.vuelos[0] && inf.vuelos[0].carpeta || '').split(/[\\/]/)[0] || 'carpeta';
+    raiz = raiz.replace(/[\\/:*?"<>|]/g, '-').trim() || 'carpeta';
+    var d = new Date(), dos = function (n) { return (n < 10 ? '0' : '') + n; };
+    return 'auto3d_vuelos_' + raiz + '_' + d.getFullYear() + dos(d.getMonth() + 1) +
+           dos(d.getDate()) + '_' + dos(d.getHours()) + dos(d.getMinutes()) + '.csv';
   }
 
   function triageCsv(inf) {
