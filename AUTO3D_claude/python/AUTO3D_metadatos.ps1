@@ -16,8 +16,18 @@
         3. Mandame el CSV que deja en el Escritorio. Pesa unos pocos KB.
 #>
 
-$raiz   = "E:\005 Territorio Mudejar"
+param([string]$Raiz)
+
+$raiz   = if ($Raiz) { $Raiz } else { "E:\005 Territorio Mudejar" }
 $salida = Join-Path ([Environment]::GetFolderPath('Desktop')) 'auto3d_metadatos.csv'
+
+# si la ruta por defecto no existe, pedirla en vez de fallar
+while (-not (Test-Path -LiteralPath $raiz)) {
+    Write-Host "No existe la carpeta: $raiz" -ForegroundColor Yellow
+    Write-Host "Arrastra aqui la carpeta con los vuelos y pulsa Intro (o escribe su ruta):"
+    $raiz = (Read-Host).Trim().Trim('"')
+    if (-not $raiz) { Write-Host "Cancelado." -ForegroundColor Red; exit 1 }
+}
 
 $campos = @(
     'DroneModel','ImageSource','GpsStatus','AltitudeType',
@@ -27,11 +37,6 @@ $campos = @(
     'RtkFlag','RtkStdLon','RtkStdLat','RtkStdHgt',
     'SurveyingMode','CameraSerialNumber','DroneSerialNumber'
 )
-
-if (-not (Test-Path -LiteralPath $raiz)) {
-    Write-Host "No existe la carpeta: $raiz" -ForegroundColor Red
-    Read-Host "Pulsa Intro para salir"; exit 1
-}
 
 Write-Host "Buscando fotos en $raiz ..." -ForegroundColor Cyan
 $fotos = Get-ChildItem -LiteralPath $raiz -Recurse -File -Include *.jpg,*.jpeg,*.JPG,*.JPEG -ErrorAction SilentlyContinue
