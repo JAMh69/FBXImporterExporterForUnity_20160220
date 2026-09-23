@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+_local/
+build/
+dist/
+*.egg-info/
+revit/**/bin/
+revit/**/obj/
+*.rvt
+*.rfa
+*.las
+*.laz
+*.e57
+!tests/datos/**

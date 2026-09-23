@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scan2rvt"
+version = "0.1.0"
+description = "Nubes de puntos (LAS/LAZ/E57) a elementos nativos de Revit 2026 y otros formatos 3D"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "open3d>=0.18",
+    "laspy[lazrs]>=2.5",
+    "pye57>=0.4",
+    "shapely>=2.0",
+    "trimesh>=4.0",
+    "mapbox_earcut>=1.0",
+    "ifcopenshell>=0.8",
+    "PySide6>=6.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6"]
+
+[project.scripts]
+scan2rvt = "scan2rvt.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
