@@ -15,7 +15,7 @@ body{margin:0;padding:24px 16px;background:var(--bg);color:var(--fg);font:15px/1
 main{max-width:960px;margin:auto}h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 8px}
 .mut{color:var(--mut)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
 th{font-weight:600}.num{text-align:right;font-variant-numeric:tabular-nums}.ok{color:var(--ok)}.warn{color:var(--warn)}
-svg{width:100%;height:auto;border:1px solid var(--line);border-radius:8px}li{margin:4px 0}
+svg{width:100%;height:auto;max-height:360px;border:1px solid var(--line);border-radius:8px}li{margin:4px 0}
 .planta path{fill:var(--fill);stroke:var(--stroke);stroke-width:1.5;fill-rule:evenodd;vector-effect:non-scaling-stroke}
 """
 
