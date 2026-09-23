@@ -361,6 +361,7 @@
             var txt = aTexto(bytes);
             var xmp = T.leerXMP(txt), exif = T.leerEXIF(bytes);
             fotos.push({
+              file: f,                      // se conserva para poder medir despues
               nombre: f.name, carpeta: carpetaDe(f), bytes: f.size,
               tiempo: f.lastModified || 0,
               ancho: exif.ancho, alto: exif.alto, modelo: (xmp && xmp.DroneModel) || exif.modelo || '',
@@ -371,6 +372,7 @@
               pitch: xmp ? parseFloat(xmp.GimbalPitchDegree) : NaN,
               yaw: xmp ? parseFloat(xmp.GimbalYawDegree) : NaN,
               rtk: xmp && xmp.RtkStdLon ? parseFloat(xmp.RtkStdLon) : NaN,
+              roll: xmp ? parseFloat(xmp.GimbalRollDegree) : NaN,
               gps: xmp ? xmp.GpsStatus : '',
               xmp: !!xmp
             });
@@ -429,7 +431,18 @@
         megapixel: g[0].ancho ? g[0].ancho * g[0].alto / 1e6 : null,
         focal35: g[0].focal35 || null
       };
+      /* Camaras con pose, para poder medir sin fotogrametria. Solo se pueden
+         construir si la foto trae el XMP con los angulos de gimbal y el EXIF
+         la focal equivalente; si falta algo el vuelo se lista igual, pero sin
+         opcion de medir. */
+      v.fotos = g;
+      var ref = [g[0].lat, g[0].lon];
+      v.camaras = g.map(function (f) { return A.mv.camaraDeFoto(f, ref); });
+      v.medible = g.length >= 2 && v.camaras.every(function (c) { return !!c; });
       v.eval = T.evaluar(v);
+      if (!v.medible && g.length >= 2) {
+        v.eval.avisos.push('no se puede medir: falta la focal equivalente en el EXIF o los angulos de gimbal en el XMP');
+      }
       vuelos.push(v);
     });
 

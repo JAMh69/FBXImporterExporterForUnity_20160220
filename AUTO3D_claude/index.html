@@ -182,6 +182,35 @@
     </div>
   </div>
 
+  <!-- ================= medir sobre varias fotos ================= -->
+  <div id="medir" hidden>
+    <div class="md-box">
+      <div class="md-head">
+        <b>Medir</b><span id="mdTitulo" class="hint"></span>
+        <div style="flex:1"></div>
+        <button id="mdDeshacer">deshacer</button>
+        <button id="mdCsv">exportar CSV</button>
+        <button id="mdCerrar">cerrar</button>
+      </div>
+      <div class="md-paneles">
+        <div class="md-panel">
+          <div class="md-bar"><span class="badge">A</span><select id="mdSelA"></select><span id="mdEtA" class="hint"></span></div>
+          <canvas id="mdCvA"></canvas>
+        </div>
+        <div class="md-panel">
+          <div class="md-bar"><span class="badge">B</span><select id="mdSelB"></select><span id="mdEtB" class="hint"></span></div>
+          <canvas id="mdCvB"></canvas>
+        </div>
+      </div>
+      <div class="md-pie">
+        <div id="mdEstado" class="hint"></div>
+        <div id="mdDistancia"></div>
+        <div id="mdLista"></div>
+        <div class="hint">Rueda para acercar · Alt y arrastrar para mover · la línea amarilla marca dónde puede estar el punto en la vista B</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= linea de tiempo ================= -->
   <div id="timeline">
     <div class="tl-row">
@@ -210,7 +239,9 @@
 <script src="js/tracking.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/exporters.js"></script>
+<script src="js/multiview.js"></script>
 <script src="js/triage.js"></script>
+<script src="js/measure.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
 </body>

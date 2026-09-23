@@ -551,6 +551,11 @@
       e.target.value = '';                  // permite reabrir la misma carpeta
     });
     $('trCerrar').onclick = function () { $('triage').hidden = true; };
+    $('mdCerrar').onclick = function () { A.medir.cerrar(); };
+    $('mdDeshacer').onclick = function () { A.medir.deshacer(); };
+    $('mdCsv').onclick = function () {
+      A.export.download('auto3d_medidas.csv', A.medir.csv(), 'text/csv');
+    };
     $('trCsv').onclick = function () {
       if (!S.triage) return;
       A.export.download(nombreInforme(S.triage), triageCsv(S.triage), 'text/csv');
@@ -634,9 +639,20 @@
       html += '</div>';
       e.notas.forEach(function (n) { html += '<div class="bien">\u2713 ' + n + '</div>'; });
       e.avisos.forEach(function (n) { html += '<div class="aviso">\u26a0 ' + n + '</div>'; });
+      if (v.medible) {
+        html += '<button class="primary" data-medir="' + v.carpeta + '" style="margin-top:6px">' +
+                'medir en este vuelo</button>';
+      }
       html += '</div>';
     });
     $('trCuerpo').innerHTML = html;
+    Array.prototype.forEach.call($('trCuerpo').querySelectorAll('[data-medir]'), function (b) {
+      b.onclick = function () {
+        var carpeta = b.getAttribute('data-medir');
+        var v = inf.vuelos.filter(function (x) { return x.carpeta === carpeta && x.medible; })[0];
+        if (v) { $('triage').hidden = true; A.medir.abrir(v); }
+      };
+    });
   }
 
   function nombreCorto(ruta) {

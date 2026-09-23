@@ -117,6 +117,23 @@ hr{border:none;border-top:1px solid var(--line);margin:8px 0}
 .rosa i{width:5px;background:var(--line);border-radius:1px;display:block}
 .rosa i.on{background:var(--acc)}
 
+/* medir sobre dos vistas */
+#medir{position:fixed;inset:0;background:rgba(6,9,13,.9);display:flex;align-items:center;justify-content:center;padding:14px;z-index:70}
+#medir .md-box{background:var(--bg2);border:1px solid var(--line);border-radius:8px;width:min(1500px,100%);height:94vh;display:flex;flex-direction:column}
+#medir .md-head{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}
+#medir .md-paneles{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);min-height:0}
+#medir .md-panel{display:flex;flex-direction:column;background:var(--bg2);min-height:0;min-width:0}
+#medir .md-bar{display:flex;align-items:center;gap:7px;padding:5px 8px;border-bottom:1px solid var(--line)}
+#medir .md-bar select{width:auto;flex:1;min-width:0}
+#medir canvas{flex:1;min-height:0;width:100%;cursor:crosshair;display:block}
+#medir .md-pie{border-top:1px solid var(--line);padding:8px 12px;max-height:27vh;overflow-y:auto}
+#mdDistancia{font-size:15px;margin:5px 0;color:var(--ok)}
+.mdpt{padding:3px 6px;border-radius:4px;cursor:pointer;font-size:11px;display:flex;gap:9px;align-items:baseline}
+.mdpt:hover{background:#0e1b2c}
+.mdpt.sel{background:#14283f;outline:1px solid var(--ok)}
+.mdpt b{color:var(--acc);min-width:26px}
+@media (max-width:900px){#medir .md-paneles{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+
 /* la pagina publicada vive dentro de un marco: sin margenes y a toda altura */
 html,body{height:100%;margin:0;background:#12151a}
 </style>
@@ -295,6 +312,35 @@ html,body{height:100%;margin:0;background:#12151a}
     </div>
   </div>
 
+  <!-- ================= medir sobre varias fotos ================= -->
+  <div id="medir" hidden>
+    <div class="md-box">
+      <div class="md-head">
+        <b>Medir</b><span id="mdTitulo" class="hint"></span>
+        <div style="flex:1"></div>
+        <button id="mdDeshacer">deshacer</button>
+        <button id="mdCsv">exportar CSV</button>
+        <button id="mdCerrar">cerrar</button>
+      </div>
+      <div class="md-paneles">
+        <div class="md-panel">
+          <div class="md-bar"><span class="badge">A</span><select id="mdSelA"></select><span id="mdEtA" class="hint"></span></div>
+          <canvas id="mdCvA"></canvas>
+        </div>
+        <div class="md-panel">
+          <div class="md-bar"><span class="badge">B</span><select id="mdSelB"></select><span id="mdEtB" class="hint"></span></div>
+          <canvas id="mdCvB"></canvas>
+        </div>
+      </div>
+      <div class="md-pie">
+        <div id="mdEstado" class="hint"></div>
+        <div id="mdDistancia"></div>
+        <div id="mdLista"></div>
+        <div class="hint">Rueda para acercar · Alt y arrastrar para mover · la línea amarilla marca dónde puede estar el punto en la vista B</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= linea de tiempo ================= -->
   <div id="timeline">
     <div class="tl-row">
@@ -323,6 +369,8 @@ html,body{height:100%;margin:0;background:#12151a}
 <script src="js/tracking.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/exporters.js"></script>
+<script src="js/multiview.js"></script>
 <script src="js/triage.js"></script>
+<script src="js/measure.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>

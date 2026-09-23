@@ -882,6 +882,74 @@ EXIF: una foto recortada conserva el tamaño viejo en sus etiquetas.
 
 ---
 
+## 19. Medir en metros dentro de la app (23/09/2026)
+
+Cerrado el ciclo: **de una carpeta de fotos de dron a una medida en metros, sin
+fotogrametría y sin instalar nada**. Los metadatos dan la pose de cada foto (apartado 15),
+y marcando el mismo punto en dos vistas se corta en el espacio.
+
+### Lo que se ve en pantalla
+
+Dos fotos lado a lado. Se marca un punto en la izquierda y:
+
+1. La app **elige sola la foto de la derecha**: la más separada angularmente que siga
+   viendo ese punto, no la siguiente del vuelo. En la prueba eligió una a **122°**.
+2. Dibuja la **recta epipolar**: el punto correspondiente cae forzosamente sobre ella, así
+   que en vez de buscar por toda la imagen se sigue la línea. Con la distancia anotada
+   sobre la guía, para orientarse.
+3. Al marcar en la derecha, sale el punto en metros, su **error de reproyección** y la
+   precisión esperada.
+4. La distancia entre los dos últimos puntos, con su incertidumbre y el desnivel.
+
+### Medido contra verdad conocida
+
+Escena sintética de un edificio de 20 × 10 m, alero a 8 y cumbrera a 11, con seis fotos
+que llevan **EXIF y XMP de DJI auténticos** (`python/tests/hacer_fotos_dji.py`):
+
+| | verdad | medido | error |
+|---|---|---|---|
+| Lado | 20 m | 20,0000 m | **0,0 mm** |
+| Altura de alero | 8 m | 8,0000 m | **0,0 mm** |
+| Altura de cumbrera | 11 m | 11,0000 m | **0,0 mm** |
+| Error de reproyección | — | 0,0004 px | — |
+| Posición de cámara reconstruida | — | — | 0,08 mm |
+
+Y **marcando con el ratón de verdad**, a la resolución de pantalla: **19,99 m** sobre 20,
+con 1,0 px de error de reproyección. La app anunciaba ±23 cm y el error real fue de 1 cm:
+la estimación es **conservadora**, que es el lado correcto por el que equivocarse.
+
+### Un fallo numérico que la primera prueba no vio
+
+La triangulación necesita el autovector del menor autovalor. La primera versión usaba
+iteración de potencia sobre `cI − AᵀA` y **fallaba en silencio**: daba 94 m donde había 20.
+
+La causa: con cámaras a decenas de metros los dos autovalores mayores quedan casi iguales
+tras el desplazamiento, y la iteración no converge. La comprobación cruzada contra Python
+**había pasado** porque aquella escena estaba mejor condicionada. Sustituido por rotaciones
+de Jacobi, que con una matriz simétrica 4×4 no tienen ese problema y cuestan nada.
+
+La lección para el proyecto: **una prueba que pasa no dice que el método sea estable**,
+solo que lo es para esos números. Por eso ahora hay dos escenas con condicionamiento
+distinto.
+
+### Otro de proceso
+
+Un parche a `triage.js` no llegó a aplicarse y el script que lo aplicaba **dijo que sí**.
+Se perdió un rato buscando el fallo en el sitio equivocado. Desde entonces los parches
+llevan `assert` de que la sustitución ocurrió.
+
+### Archivos
+
+```
+js/multiview.js        triangulación, recta epipolar, elección de la segunda vista,
+                       precisión esperada y construcción de cámara desde el XMP
+js/measure.js          la interfaz de dos paneles
+python/tests/hacer_fotos_dji.py   generador de fotos con metadatos DJI y verdad conocida
+tests_navegador/       cuatro pruebas de navegador, repetibles
+```
+
+---
+
 ## 11. El puente: geometría portada a Python
 
 Carpeta `AUTO3D_claude/python/`. Son módulos pensados para **añadirse a la app de
@@ -1027,3 +1095,15 @@ mismo vuelo. Los dos corregidos, y la suposición es ahora explícita.
 
 El extractor de PowerShell escribe en `<carpeta del script>\datos`, dentro del proyecto en
 E:, no en el Escritorio.
+
+### 2026-09-23 — Medir en metros dentro de la app
+Escritos `js/multiview.js` y `js/measure.js`, más el generador de fotos sintéticas con
+metadatos DJI y cuatro pruebas de navegador repetibles. Documentado en el apartado 19.
+
+Medido contra verdad conocida: lado de 20 m con 0,0 mm de error; marcando con el ratón,
+19,99 m. La cadena entera —metadatos, pose, triangulación, metros— queda cerrada sin
+fotogrametría.
+
+Un fallo numérico en la triangulación (iteración de potencia que no converge) pasó la
+comprobación cruzada contra Python y solo apareció con la segunda escena. Sustituido por
+Jacobi.
