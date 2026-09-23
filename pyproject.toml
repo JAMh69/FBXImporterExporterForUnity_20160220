@@ -11,7 +11,6 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
-    "open3d>=0.18",
     "laspy[lazrs]>=2.5",
     "pye57>=0.4",
     "shapely>=2.0",

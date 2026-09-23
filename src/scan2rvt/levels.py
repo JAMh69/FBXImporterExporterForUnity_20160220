@@ -19,7 +19,7 @@ from shapely.geometry import Polygon, box
 from shapely.affinity import scale, translate
 from shapely.ops import unary_union
 
-from .cloud import Nube, voxel_reduce
+from .cloud import Nube, normales, voxel_reduce
 from .config import LevelSettings
 
 ESPESOR_DEFECTO = 0.30
@@ -50,12 +50,8 @@ class ResultadoNiveles:
 
 
 def puntos_horizontales(nube: Nube, s: LevelSettings) -> np.ndarray:
-    import open3d as o3d
-
     red = voxel_reduce(nube, s.voxel_m)
-    pc = red.to_o3d()
-    pc.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=s.voxel_m * 3, max_nn=30))
-    nz = np.abs(np.asarray(pc.normals)[:, 2])
+    nz = np.abs(normales(red.xyz)[:, 2])
     return red.xyz[nz > 0.95]
 
 

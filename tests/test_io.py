@@ -72,3 +72,42 @@ def test_voxel_centroide():
     n = voxel_reduce(Nube(xyz), 0.1, origin=np.zeros(3))
     assert len(n) == 2
     assert np.allclose(sorted(n.xyz[:, 0]), [0.02, 0.51])
+
+
+def test_leer_pts_xyz_ply(tmp_path):
+    import trimesh
+
+    rng = np.random.default_rng(0)
+    xyz = rng.random((3000, 3)) * 4
+    rgb = rng.integers(0, 255, (3000, 3))
+    inten = rng.integers(-2047, 2047, (3000, 1))
+    # .pts de Leica: primera línea = nº de puntos; x y z intensidad r g b
+    with open(tmp_path / "a.pts", "w") as f:
+        f.write("3000\n")
+        np.savetxt(f, np.hstack([xyz, inten, rgb]), fmt="%.4f %.4f %.4f %d %d %d %d")
+    np.savetxt(tmp_path / "b.xyz", xyz, fmt="%.4f")
+    trimesh.PointCloud(xyz, colors=np.hstack([rgb, np.full((3000, 1), 255)])).export(tmp_path / "c.ply")
+    for nombre in ("a.pts", "b.xyz", "c.ply"):
+        n = leer_nube(tmp_path / nombre, voxel=0.0, origen=0)
+        assert len(n) == 3000, nombre
+        assert np.allclose(np.sort(n.xyz[:, 2]), np.sort(xyz[:, 2]), atol=1e-3)
+    assert leer_nube(tmp_path / "a.pts", 0.0, 0).rgb is not None
+    assert leer_nube(tmp_path / "c.ply", 0.0, 0).rgb is not None
+
+
+def test_normales_de_un_plano():
+    from scan2rvt.cloud import normales
+
+    rng = np.random.default_rng(0)
+    xyz = np.column_stack([rng.random(2000) * 5, rng.random(2000) * 5, np.full(2000, 3.0)])
+    assert (np.abs(normales(xyz)[:, 2]) > 0.99).all()
+
+
+def test_quitar_ruido():
+    from scan2rvt.cloud import remove_outliers
+
+    rng = np.random.default_rng(0)
+    plano = np.column_stack([rng.random(5000) * 5, rng.random(5000) * 5, np.zeros(5000)])
+    ruido = rng.random((20, 3)) * 5 + [0, 0, 3]
+    n = remove_outliers(Nube(np.vstack([plano, ruido])))
+    assert (n.xyz[:, 2] < 1).sum() >= 4900 and (n.xyz[:, 2] > 1).sum() == 0

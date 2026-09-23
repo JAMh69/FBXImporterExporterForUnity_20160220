@@ -42,14 +42,6 @@ class Nube:
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         return self.xyz.min(axis=0), self.xyz.max(axis=0)
 
-    def to_o3d(self):
-        import open3d as o3d
-
-        pc = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(self.xyz))
-        if self.rgb is not None:
-            pc.colors = o3d.utility.Vector3dVector(self.rgb.astype(np.float64) / 255.0)
-        return pc
-
 
 def _voxel_keys(xyz: np.ndarray, voxel: float, origin: np.ndarray) -> np.ndarray:
     k = np.floor((xyz - origin) / voxel).astype(np.int64)
@@ -116,8 +108,31 @@ def merge(nubes: list[Nube]) -> Nube:
 
 
 def remove_outliers(nube: Nube, vecinos: int = 16, sigma: float = 2.5) -> Nube:
-    """Filtro estadístico: quita puntos aislados (ruido del escáner, reflejos, pájaros...)."""
+    """Filtro estadístico: quita puntos aislados (ruido del escáner, reflejos, pájaros...).
+
+    Un punto es ruido si su distancia media a sus vecinos supera la media global
+    en más de ``sigma`` desviaciones típicas.
+    """
     if len(nube) < vecinos * 2:
         return nube
-    _, idx = nube.to_o3d().remove_statistical_outlier(nb_neighbors=vecinos, std_ratio=sigma)
-    return nube.subset(np.asarray(idx, dtype=np.int64))
+    from scipy.spatial import cKDTree
+
+    d, _ = cKDTree(nube.xyz).query(nube.xyz, k=vecinos + 1, workers=-1)
+    media = d[:, 1:].mean(axis=1)
+    return nube.subset(media <= media.mean() + sigma * media.std())
+
+
+def normales(xyz: np.ndarray, vecinos: int = 16) -> np.ndarray:
+    """Normal de cada punto por análisis de componentes principales de sus vecinos."""
+    from scipy.spatial import cKDTree
+
+    k = min(vecinos, len(xyz))
+    _, idx = cKDTree(xyz).query(xyz, k=k, workers=-1)
+    out = np.empty_like(xyz)
+    for a in range(0, len(xyz), 200_000):          # por bloques para acotar memoria
+        vec = xyz[idx[a:a + 200_000]]
+        vec = vec - vec.mean(axis=1, keepdims=True)
+        cov = np.einsum("nki,nkj->nij", vec, vec)
+        _, v = np.linalg.eigh(cov)
+        out[a:a + 200_000] = v[:, :, 0]            # autovector del menor autovalor
+    return out

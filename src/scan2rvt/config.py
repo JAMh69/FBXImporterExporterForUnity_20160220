@@ -24,7 +24,7 @@ class LevelSettings:
     voxel_m: float = 0.05           # submuestreo para el análisis
     bin_m: float = 0.02             # resolución del histograma de alturas
     celda_area_m: float = 0.25      # celda para medir la superficie horizontal
-    celda_contorno_m: float = 0.05  # resolución del contorno de forjados
+    celda_contorno_m: float = 0.02  # resolución del contorno de forjados (= submuestreo)
     area_min_m2: float = 4.0        # superficie mínima de un suelo/techo
     area_rel_min: float = 0.25      # superficie mínima relativa a la mayor
     altura_libre_min_m: float = 2.0 # altura mínima suelo-techo de una planta

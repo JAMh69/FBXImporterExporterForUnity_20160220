@@ -2,7 +2,7 @@
 
 Formatos: .las/.laz (dron DJI Terra, exportaciones de Cyclone/ReCap), .e57
 (estándar de escáneres; es la forma de usar un .rcp: ReCap → Exportar → E57),
-.ply, .pts, .xyz, .pcd.
+.ply, .pts, .xyz.
 
 Los archivos se leen por bloques y se submuestrean por vóxel mientras se leen,
 así una nube de muchos GB no necesita caber entera en memoria.
@@ -17,7 +17,7 @@ import numpy as np
 
 from ..cloud import Nube, merge, voxel_reduce
 
-EXTENSIONES = (".las", ".laz", ".e57", ".ply", ".pts", ".xyz", ".pcd")
+EXTENSIONES = (".las", ".laz", ".e57", ".ply", ".pts", ".xyz")
 NO_SOPORTADAS = {
     ".rcp": "Los .rcp/.rcs son formato cerrado de Autodesk. Ábrelo en ReCap y usa Exportar → E57.",
     ".rcs": "Los .rcp/.rcs son formato cerrado de Autodesk. Ábrelo en ReCap y usa Exportar → E57.",
@@ -55,8 +55,8 @@ def leer_nube(ruta: str | Path, voxel: float, origen: int, progreso: Progreso | 
         nube = _leer_las(ruta, voxel, log)
     elif ext == ".e57":
         nube = _leer_e57(ruta, voxel, log)
-    elif ext in (".ply", ".pts", ".xyz", ".pcd"):
-        nube = _leer_o3d(ruta, voxel)
+    elif ext in (".ply", ".pts", ".xyz"):
+        nube = _leer_otros(ruta, voxel)
     elif ext in NO_SOPORTADAS:
         raise ValueError(NO_SOPORTADAS[ext])
     else:
@@ -124,10 +124,39 @@ def _leer_e57(ruta: Path, voxel: float, log: Progreso) -> Nube:
     return voxel_reduce(merge(partes), voxel) if partes else Nube(np.zeros((0, 3)))
 
 
-def _leer_o3d(ruta: Path, voxel: float) -> Nube:
-    import open3d as o3d
+def _leer_otros(ruta: Path, voxel: float) -> Nube:
+    """PLY (con trimesh) y formatos de texto .pts / .xyz: x y z [intensidad] [r g b]."""
+    if ruta.suffix.lower() == ".ply":
+        import trimesh
 
-    pc = o3d.io.read_point_cloud(str(ruta))
-    xyz = np.asarray(pc.points, dtype=np.float64)
-    rgb = (np.asarray(pc.colors) * 255).round().astype(np.uint8) if pc.has_colors() else None
-    return voxel_reduce(Nube(xyz, rgb), voxel)
+        pc = trimesh.load(ruta, process=False)
+        xyz = np.asarray(pc.vertices, dtype=np.float64)
+        rgb = None
+        colores = getattr(getattr(pc, "visual", None), "vertex_colors", None)
+        if colores is None:
+            colores = getattr(pc, "colors", None)
+        if colores is not None and len(colores) == len(xyz):
+            rgb = np.asarray(colores)[:, :3].astype(np.uint8)
+        return voxel_reduce(Nube(xyz, rgb), voxel)
+    if ruta.suffix.lower() == ".pcd":
+        raise ValueError("El formato .pcd no está soportado; expórtalo como .las, .e57 o .ply.")
+
+    partes = []
+    with open(ruta, "r", encoding="utf-8", errors="replace") as f:
+        primera = f.readline().split()
+        if len(primera) >= 3:                      # .xyz sin cabecera
+            f.seek(0)
+        while True:
+            lineas = f.readlines(64 * 1024 * 1024)
+            if not lineas:
+                break
+            datos = np.loadtxt(lineas, ndmin=2, comments="#")
+            if datos.shape[1] < 3:
+                continue
+            xyz = datos[:, :3].astype(np.float64)
+            rgb = datos[:, -3:].clip(0, 255).astype(np.uint8) if datos.shape[1] >= 6 else None
+            inten = datos[:, 3].astype(np.float32) if datos.shape[1] in (4, 7) else None
+            partes.append(voxel_reduce(Nube(xyz, rgb, inten), voxel, np.zeros(3)))
+    if not partes:
+        return Nube(np.zeros((0, 3)))
+    return voxel_reduce(merge(partes), voxel, np.zeros(3)) if len(partes) > 1 else partes[0]

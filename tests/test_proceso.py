@@ -54,7 +54,8 @@ def test_ifc(resultado):
     st.set("use-world-coords", True)
     zs = []
     for losa in f.by_type("IfcSlab"):
-        v = np.array(ifcopenshell.geom.create_shape(st, losa).geometry.verts).reshape(-1, 3)
+        forma = ifcopenshell.geom.create_shape(st, losa)   # mantener la referencia viva mientras se leen los vértices
+        v = np.array(forma.geometry.verts).reshape(-1, 3)
         zs.append((round(v[:, 2].min(), 2), round(v[:, 2].max(), 2)))
     assert sorted(zs) == [(-0.3, 0.0), (3.0, 3.3), (6.0, 6.3)]
     assert len(f.by_type("IfcGeographicElement")) == 1
