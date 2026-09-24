@@ -1,8 +1,9 @@
 name: Compilar Scan2RVT para Windows
 
+# El proyecto vive en scan2rvt/ dentro de este repositorio.
 on:
   push:
-    branches: [main]
+    branches: [master, main, "claude/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -13,6 +14,9 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: scan2rvt
     steps:
       - uses: actions/checkout@v4
 
@@ -57,10 +61,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Scan2RVT
-          path: build/Scan2RVT.zip
+          path: scan2rvt/build/Scan2RVT.zip
 
       - name: Publicar versión
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/Scan2RVT.zip
+          files: scan2rvt/build/Scan2RVT.zip

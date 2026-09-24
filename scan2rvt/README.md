@@ -40,7 +40,8 @@ python -m scan2rvt procesar --demo --nombre Demo --salidas ifc,glb
 dotnet build revit/Scan2Rvt.Revit -c Release
 ```
 
-Cada push a `main` compila en GitHub Actions (Windows) y deja `Scan2RVT.zip` como artefacto;
+Cada push compila en GitHub Actions (Windows) con `.github/workflows/scan2rvt.yml` (en la raíz del
+repositorio) y deja `Scan2RVT.zip` como artefacto;
 cada etiqueta `v*` lo publica además como versión descargable.
 
 ## Estado (fase 1)
