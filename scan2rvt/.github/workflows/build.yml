@@ -1,0 +1,66 @@
+name: Compilar Scan2RVT para Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Pruebas
+        run: pytest -q
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Complemento de Revit 2026
+        run: dotnet build revit/Scan2Rvt.Revit/Scan2Rvt.Revit.csproj -c Release -o build/revit
+
+      - name: Ejecutable
+        run: pyinstaller --noconfirm --clean --distpath build/dist --workpath build/work packaging/scan2rvt.spec
+
+      - name: Montar carpeta Scan2RVT
+        shell: pwsh
+        run: |
+          $d = "build/Scan2RVT"
+          New-Item -ItemType Directory -Force -Path "$d/revit" | Out-Null
+          Copy-Item -Recurse build/dist/Scan2RVT "$d/app"
+          Copy-Item build/revit/Scan2Rvt.Revit.dll "$d/revit/"
+          Copy-Item packaging/LEEME.txt "$d/"
+          Copy-Item "packaging/Abrir Scan2RVT.bat" "$d/"
+          # Prueba de humo del ejecutable ya empaquetado.
+          $env:SCAN2RVT_HOME = "$env:RUNNER_TEMP/000 APPS JAMh/Scan2RVT"
+          # El .exe es de ventana (sin consola): hay que esperar a que termine explícitamente.
+          Start-Process -FilePath "$d/app/Scan2RVT.exe" -ArgumentList "procesar","--demo","--nombre","Prueba","--salidas","ifc,glb" -Wait -NoNewWindow
+          if (-not (Test-Path "$env:SCAN2RVT_HOME/proyectos/Prueba/resultados/Prueba.ifc")) { throw "La prueba del .exe no generó el IFC" }
+          Compress-Archive -Path $d -DestinationPath build/Scan2RVT.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Scan2RVT
+          path: build/Scan2RVT.zip
+
+      - name: Publicar versión
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Scan2RVT.zip

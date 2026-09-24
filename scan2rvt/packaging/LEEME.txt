@@ -1,0 +1,39 @@
+SCAN2RVT - Nube de puntos a Revit 2026, IFC y modelos 3D
+=========================================================
+
+INSTALAR
+1. Descomprime Scan2RVT.zip dentro de  E:\000 APPS JAMh\
+   Quedará  E:\000 APPS JAMh\Scan2RVT\
+2. Abre "Abrir Scan2RVT.bat" (o app\Scan2RVT.exe).
+   Windows puede avisar de que el programa no está firmado: "Más información" > "Ejecutar de todas formas".
+
+USAR
+1. Escribe el nombre de la obra.
+2. Arrastra las nubes (archivos o carpetas enteras):
+   - zona "Escáner": BLK360 (.e57, .las, .laz, .ply, .pts)
+   - zona "Dron": Matrice 4E / DJI Terra (.las, .laz)
+   - zona "Plantilla" (opcional): vuestro .rte
+   Los .rcp/.rcs no se pueden leer (formato cerrado de Autodesk):
+   ábrelos en ReCap y usa Exportar > E57.
+3. Marca qué quieres generar y pulsa "Procesar".
+   "Probar con la demo" procesa un edificio de ejemplo sin necesitar datos.
+
+DÓNDE SE GUARDA TODO
+  E:\000 APPS JAMh\Scan2RVT\proyectos\<obra>\resultados   .rvt .ifc .glb .obj .stl .laz
+  E:\000 APPS JAMh\Scan2RVT\proyectos\<obra>\informe      informe.html
+  E:\000 APPS JAMh\Scan2RVT\config                        ajustes
+  E:\000 APPS JAMh\Scan2RVT\logs                          errores
+Las nubes originales NO se copian: se leen desde donde estén.
+
+REVIT
+- Para el .rvt hace falta Revit 2026 instalado. Scan2RVT abre Revit solo,
+  construye el modelo, guarda el .rvt y cierra Revit. No toques Revit mientras tanto.
+- La primera vez Revit preguntará si carga el complemento "Scan2RVT"
+  (no está firmado): pulsa "Cargar siempre".
+- Lo único que se escribe fuera de esta carpeta es un archivo de 1 KB:
+  %AppData%\Autodesk\Revit\Addins\2026\Scan2RVT.addin
+  (Ajustes > "Desinstalar complemento" lo borra).
+
+ACTUALIZAR
+Sustituye las carpetas "app" y "revit" por las de la versión nueva.
+No toques "proyectos" ni "config".
