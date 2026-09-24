@@ -13,3 +13,6 @@ revit/**/obj/
 *.laz
 *.e57
 !tests/datos/**
+
+# El repositorio de Unity ignora *.csproj en la raíz; aquí sí se versiona.
+!*.csproj
