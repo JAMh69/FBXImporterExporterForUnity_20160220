@@ -120,3 +120,22 @@ def test_ajustes_ida_y_vuelta(home):
     s2 = config.load()
     assert s2.terreno.malla_m == 0.5 and s2.epsg == "25830"
     assert config.settings_file().parent == home / "config"
+
+
+def test_aviso_si_la_nube_de_escaner_es_un_solar(tmp_path, monkeypatch):
+    """Un escáner de cientos de metros no es el interior de un edificio: la app debe avisarlo."""
+    import numpy as np
+
+    from scan2rvt import pipeline, sintetico
+    from scan2rvt.cloud import Nube
+    from scan2rvt.config import Settings
+
+    monkeypatch.setenv("SCAN2RVT_HOME", str(tmp_path / "000 APPS JAMh" / "Scan2RVT"))
+    paths.ensure_dirs()
+    d = sintetico.generar()
+    cx, cy = sintetico.X0 + 30, sintetico.Y0 + 26
+    lejos = np.array([[cx + 400, cy, 99.0], [cx - 400, cy, 99.0]])       # dos puntos: nube de 800 m
+    demo = sintetico.Demo(Nube(np.vstack([d.escaner.xyz, lejos])), d.dron)
+    monkeypatch.setattr(sintetico, "generar", lambda *a, **k: demo)
+    r = pipeline.ejecutar(pipeline.Trabajo(nombre="Solar", demo=True, salidas=["ifc"]), Settings())
+    assert any("parece un solar entero" in a for a in r.avisos)

@@ -111,6 +111,15 @@ def ejecutar(trabajo: Trabajo, ajustes: Settings, progreso: Progreso | None = No
                 dron = reducida
             avisos.append(f"Nube de {etiqueta}: {n0:,} puntos son demasiados para el análisis; se ha submuestreado "
                           f"a {vox * 100:.0f} cm ({len(reducida):,} puntos).".replace(",", "."))
+    if len(escaner):
+        lado = escaner.xyz[:, :2].max(axis=0) - escaner.xyz[:, :2].min(axis=0)
+        if lado.max() > ajustes.extension_escaner_aviso_m:
+            avisos.append(
+                f"La nube de ESCÁNER mide {lado[0]:.0f} × {lado[1]:.0f} m: parece un solar entero o un vuelo de dron, "
+                f"no el interior de un edificio. Niveles y muros se detectan para edificios; con un terreno tan "
+                f"grande los forjados del edificio pueden no detectarse. Si es un vuelo de dron, ponlo en la "
+                f"casilla «Dron»; si es un escáner, recórtalo al edificio.")
+
     if ajustes.quitar_ruido:
         paso("Quitando ruido…", 0.34)
         escaner = remove_outliers(escaner) if len(escaner) else escaner

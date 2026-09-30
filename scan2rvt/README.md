@@ -58,6 +58,12 @@ vóxel automáticamente y lo avisa; el análisis trabaja a 5 cm, así que no pie
 (.laz) sale con menos resolución. Los vecinos (ruido y normales) se calculan por bloques para acotar la memoria.
 Un primer uso con 365 millones de puntos falló por memoria (46 GiB) antes de este cambio.
 
+Solares y vuelos de dron: los niveles y muros están pensados para el **interior de un edificio** (casilla «Escáner»).
+Con una nube de cientos de metros en «Escáner» la app lo avisa, y los forjados del edificio pueden no detectarse porque
+el suelo exterior domina (se descartan superficies menores de un cuarto de la mayor). Los contornos de superficies enormes se
+calculan con celdas más gruesas (hasta 25 millones de celdas) para no agotar la memoria.
+Segundo fallo real de memoria (17,2 GiB en `levels._poligonos`) corregido con ese tope.
+
 Limitaciones de los muros: el eje es la **cara vista** por el escáner (no el eje real), el espesor es un supuesto
 (0,20 m), sin puertas ni ventanas, sin muros curvos. La cubierta se supone plana y con espesor supuesto.
 

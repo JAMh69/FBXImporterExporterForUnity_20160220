@@ -24,13 +24,15 @@ from .config import LevelSettings
 
 ESPESOR_DEFECTO = 0.30
 HUECO_MIN_M2 = 1.0
+MAX_CELDAS_CONTORNO = 25_000_000   # tope de la trama raster de un contorno (~100 MB de trabajo)
+_OFF = 1 << 30
 
 
 @dataclass
 class Superficie:
     z: float
     area_m2: float
-    celdas: set = field(repr=False)   # celdas XY (i, j) ocupadas
+    celdas: np.ndarray = field(repr=False)   # claves ordenadas y únicas de las celdas XY (i, j) ocupadas
 
 
 @dataclass
@@ -90,17 +92,17 @@ def detectar_superficies(xyz: np.ndarray, s: LevelSettings) -> list[Superficie]:
         zr = float(np.median(xyz[sel, 2]))
         sel = np.abs(xyz[:, 2] - zr) <= 0.03
         c = celda[sel] + cmin
-        celdas = set(map(tuple, np.unique(c, axis=0).tolist()))
+        celdas = np.unique((c[:, 0] + _OFF) * (1 << 31) + (c[:, 1] + _OFF))
         sup.append(Superficie(zr, len(celdas) * s.celda_area_m**2, celdas))
     return sup
 
 
 def _solape(a: Superficie, b: Superficie) -> float:
-    inter = len(a.celdas & b.celdas)
+    inter = len(np.intersect1d(a.celdas, b.celdas, assume_unique=True))
     return inter / max(1, min(len(a.celdas), len(b.celdas)))
 
 
-def _poligonos(xy: np.ndarray, celda_m: float) -> list[Polygon]:
+def _poligonos(xy: np.ndarray, celda_m: float, avisos: list[str] | None = None) -> list[Polygon]:
     """Puntos de una superficie → polígonos con huecos.
 
     Se rasteriza a ``celda_m``, se cierran los vacíos por oclusión (muebles,
@@ -109,6 +111,15 @@ def _poligonos(xy: np.ndarray, celda_m: float) -> list[Polygon]:
     """
     if len(xy) < 10:
         return []
+    # Superficies enormes (un solar entero): la trama a 2 cm no cabe en memoria. Se engorda la celda
+    # lo justo para que tenga como mucho MAX_CELDAS_CONTORNO celdas.
+    ext = xy.max(axis=0) - xy.min(axis=0)
+    celdas = (ext[0] / celda_m + 8) * (ext[1] / celda_m + 8)
+    if celdas > MAX_CELDAS_CONTORNO:
+        celda_m = celda_m * float(np.sqrt(celdas / MAX_CELDAS_CONTORNO)) * 1.05
+        if avisos is not None:
+            avisos.append(f"Superficie horizontal muy grande ({ext[0]:.0f} × {ext[1]:.0f} m): "
+                          f"contorno calculado con celdas de {celda_m * 100:.0f} cm.")
     pad = max(1, int(round(0.25 / celda_m))) + 2
     ij = np.floor(xy / celda_m).astype(np.int64)
     cmin = ij.min(axis=0) - pad
@@ -122,7 +133,7 @@ def _poligonos(xy: np.ndarray, celda_m: float) -> list[Polygon]:
     lleno = ndimage.binary_fill_holes(img)
     lab, n = ndimage.label(lleno & ~img)
     if n:
-        tam = ndimage.sum_labels(np.ones_like(lab), lab, index=np.arange(1, n + 1)) * celda_m**2
+        tam = np.bincount(lab.ravel(), minlength=n + 1)[1:] * celda_m**2
         pequenos = np.flatnonzero(tam < HUECO_MIN_M2) + 1
         img |= np.isin(lab, pequenos)
     # Polígono exacto de las celdas llenas (una caja por tramo continuo de cada fila).
@@ -168,7 +179,7 @@ def detectar_niveles(nube: Nube, s: LevelSettings) -> ResultadoNiveles:
     suelo = 0
     niveles.append(("Nivel 0", sup[0].z))
     forjados.append((0, ForjadoDetectado(sup[0].z - ESPESOR_DEFECTO, sup[0].z,
-                                         _poligonos(_xy_superficie(nube, sup[0].z), s.celda_contorno_m), medido=False)))
+                                         _poligonos(_xy_superficie(nube, sup[0].z), s.celda_contorno_m, avisos), medido=False)))
     usados.add(0)
 
     i = 1
@@ -184,13 +195,13 @@ def detectar_niveles(nube: Nube, s: LevelSettings) -> ResultadoNiveles:
             continue
         if j is not None:
             xy = np.concatenate([_xy_superficie(nube, sup[i].z), _xy_superficie(nube, sup[j].z)])
-            f = ForjadoDetectado(sup[i].z, sup[j].z, _poligonos(xy, s.celda_contorno_m), medido=True)
+            f = ForjadoDetectado(sup[i].z, sup[j].z, _poligonos(xy, s.celda_contorno_m, avisos), medido=True)
             usados.update({i, j})
             suelo = j
             i = j + 1
         else:
             # Techo sin suelo encima (p. ej. último forjado visto sólo desde abajo).
-            f = ForjadoDetectado(sup[i].z, sup[i].z + ESPESOR_DEFECTO, _poligonos(_xy_superficie(nube, sup[i].z), s.celda_contorno_m), medido=False)
+            f = ForjadoDetectado(sup[i].z, sup[i].z + ESPESOR_DEFECTO, _poligonos(_xy_superficie(nube, sup[i].z), s.celda_contorno_m, avisos), medido=False)
             avisos.append(f"Forjado a {sup[i].z:.2f} m visto sólo por una cara: espesor supuesto {ESPESOR_DEFECTO:.2f} m.")
             usados.add(i)
             suelo = i

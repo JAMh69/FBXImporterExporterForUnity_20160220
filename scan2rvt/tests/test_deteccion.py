@@ -63,3 +63,29 @@ def test_sin_superficies(ajustes):
     rng = np.random.default_rng(1)
     r = levels.detectar_niveles(Nube(rng.random((500, 3)) * 50), ajustes.niveles)
     assert r.niveles == [] and r.avisos
+
+
+def test_contorno_de_una_superficie_enorme_no_revienta_la_memoria():
+    """Un solar de 300 × 300 m a 2 cm serían 225 millones de celdas; debe acotarse y seguir dando el área."""
+    from scan2rvt.levels import MAX_CELDAS_CONTORNO, _poligonos
+
+    paso = 0.3
+    g = np.arange(0, 300, paso)
+    gx, gy = np.meshgrid(g, g, indexing="ij")
+    xy = np.column_stack([gx.ravel(), gy.ravel()])
+    avisos: list[str] = []
+    polys = _poligonos(xy, 0.02, avisos)
+    assert len(polys) == 1
+    assert abs(polys[0].area - 300 * 300) / (300 * 300) < 0.03
+    assert avisos and "muy grande" in avisos[0]
+    assert (300 / 0.02) ** 2 > MAX_CELDAS_CONTORNO          # sin el tope, habría reventado
+
+
+def test_contorno_normal_no_cambia_de_celda():
+    from scan2rvt.levels import _poligonos
+
+    g = np.arange(0, 10, 0.02)
+    gx, gy = np.meshgrid(g, g, indexing="ij")
+    avisos: list[str] = []
+    polys = _poligonos(np.column_stack([gx.ravel(), gy.ravel()]), 0.02, avisos)
+    assert avisos == [] and len(polys) == 1 and abs(polys[0].area - 100) < 1.0
