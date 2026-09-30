@@ -27,7 +27,7 @@ internal sealed class Constructor
     {
         var modelo = JsonSerializer.Deserialize<Modelo>(File.ReadAllText(encargo.Modelo))
                      ?? throw new InvalidDataException("modelo.json vacío");
-        _log.Escribir($"Modelo: {modelo.Niveles.Count} niveles, {modelo.Forjados.Count} forjados, terreno: {(modelo.Terreno != null)}");
+        _log.Escribir($"Modelo: {modelo.Niveles.Count} niveles, {modelo.Forjados.Count} forjados, {modelo.Muros.Count} muros, {modelo.Cubiertas.Count} cubiertas, terreno: {(modelo.Terreno != null)}");
 
         var doc = NuevoDocumento(encargo.Plantilla);
         try
@@ -42,6 +42,8 @@ internal sealed class Constructor
                 Coordenadas(doc, modelo);
                 var niveles = Niveles(doc, modelo);
                 Forjados(doc, modelo, niveles);
+                Muros(doc, modelo, niveles);
+                Cubiertas(doc, modelo, niveles);
                 Terreno(doc, modelo, niveles);
                 t.Commit();
             }
@@ -149,18 +151,22 @@ internal sealed class Constructor
     }
 
     /// <summary>Tipo de suelo con el espesor pedido (±1 mm); si no existe, se duplica el más parecido.</summary>
-    private FloorType TipoSuelo(Document doc, List<FloorType> tipos, double espesorM)
+    private FloorType TipoSuelo(Document doc, List<FloorType> tipos, double espesorM) =>
+        TipoConEspesor(tipos, espesorM, "Scan2RVT");
+
+    /// <summary>Tipo (suelo, muro o cubierta) con el espesor pedido (±1 mm); si no existe, se duplica el más parecido.</summary>
+    private T TipoConEspesor<T>(List<T> tipos, double espesorM, string prefijo) where T : HostObjAttributes
     {
         var objetivo = M(espesorM);
         var tol = M(0.001);
         var mejor = tipos.OrderBy(t => Math.Abs(t.GetCompoundStructure().GetWidth() - objetivo)).First();
         if (Math.Abs(mejor.GetCompoundStructure().GetWidth() - objetivo) <= tol) return mejor;
 
-        var nombre = $"Scan2RVT {Math.Round(espesorM * 1000):0} mm";
+        var nombre = $"{prefijo} {Math.Round(espesorM * 1000):0} mm";
         var existente = tipos.FirstOrDefault(t => t.Name == nombre);
         if (existente != null) return existente;
 
-        var nuevo = (FloorType)mejor.Duplicate(nombre);
+        var nuevo = (T)mejor.Duplicate(nombre);
         var cs = nuevo.GetCompoundStructure();
         var capas = cs.GetLayers();
         // Se ajusta la capa más gruesa (normalmente la estructural).
@@ -181,8 +187,73 @@ internal sealed class Constructor
         }
         nuevo.SetCompoundStructure(cs);
         tipos.Add(nuevo);
-        _log.Escribir($"Tipo de suelo creado: {nombre}");
+        _log.Escribir($"Tipo creado: {nombre}");
         return nuevo;
+    }
+
+    /// <summary>Muros rectos por su eje (la cara vista por el escáner), del nivel indicado hacia arriba.</summary>
+    private void Muros(Document doc, Modelo modelo, Dictionary<string, Level> niveles)
+    {
+        if (modelo.Muros.Count == 0) return;
+        var tipos = new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>()
+            .Where(t => t.Kind == WallKind.Basic && t.GetCompoundStructure() != null).ToList();
+        if (tipos.Count == 0) throw new InvalidOperationException("La plantilla no tiene tipos de muro básicos.");
+
+        int creados = 0;
+        foreach (var m in modelo.Muros)
+        {
+            if (!niveles.TryGetValue(m.NivelId, out var nivel)) continue;
+            try
+            {
+                var tipo = TipoConEspesor(tipos, m.Espesor, "Scan2RVT muro");
+                var z = nivel.Elevation;
+                var eje = Line.CreateBound(new XYZ(M(m.Inicio[0]), M(m.Inicio[1]), z), new XYZ(M(m.Fin[0]), M(m.Fin[1]), z));
+                var muro = Wall.Create(doc, eje, tipo.Id, nivel.Id, M(m.Altura), 0.0, false, false);
+                muro.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.Set(
+                    $"Scan2RVT {m.Id}: eje = cara vista, espesor SUPUESTO, confianza {m.Confianza:F2}");
+                creados++;
+            }
+            catch (Exception ex)
+            {
+                _log.Escribir($"Muro {m.Id} no creado: {ex.Message}");
+            }
+        }
+        _log.Escribir($"Muros: {creados} de {modelo.Muros.Count}");
+    }
+
+    /// <summary>Cubiertas planas por huella. La cubierta por huella se basa en su cara inferior.</summary>
+    private void Cubiertas(Document doc, Modelo modelo, Dictionary<string, Level> niveles)
+    {
+        if (modelo.Cubiertas.Count == 0) return;
+        var tipos = new FilteredElementCollector(doc).OfClass(typeof(RoofType)).Cast<RoofType>()
+            .Where(t => t.GetCompoundStructure() != null).ToList();
+        if (tipos.Count == 0) throw new InvalidOperationException("La plantilla no tiene tipos de cubierta.");
+
+        int creadas = 0;
+        foreach (var c in modelo.Cubiertas)
+        {
+            if (!niveles.TryGetValue(c.NivelId, out var nivel)) continue;
+            try
+            {
+                var tipo = TipoConEspesor(tipos, c.Espesor, "Scan2RVT cubierta");
+                var huella = new CurveArray();
+                var pts = c.Contorno.Select(p => new XYZ(M(p[0]), M(p[1]), nivel.Elevation)).ToList();
+                for (int i = 0; i < pts.Count; i++)
+                    huella.Append(Line.CreateBound(pts[i], pts[(i + 1) % pts.Count]));
+                var lineas = new ModelCurveArray();
+                var cubierta = doc.Create.NewFootPrintRoof(huella, nivel, tipo, out lineas);
+                foreach (ModelCurve linea in lineas) cubierta.set_DefinesSlope(linea, false);   // plana
+                cubierta.get_Parameter(BuiltInParameter.ROOF_LEVEL_OFFSET_PARAM)?.Set(M(c.CotaInferior) - nivel.Elevation);
+                cubierta.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.Set(
+                    c.EspesorMedido ? $"Scan2RVT {c.Id}: espesor medido" : $"Scan2RVT {c.Id}: espesor SUPUESTO, revisar");
+                creadas++;
+            }
+            catch (Exception ex)
+            {
+                _log.Escribir($"Cubierta {c.Id} no creada: {ex.Message}");
+            }
+        }
+        _log.Escribir($"Cubiertas: {creadas} de {modelo.Cubiertas.Count}");
     }
 
     private CurveLoop Anillo(List<List<double>> puntos)

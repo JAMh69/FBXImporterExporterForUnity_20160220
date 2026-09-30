@@ -11,7 +11,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-VERSION = 1
+VERSION = 2
 
 
 @dataclass
@@ -34,6 +34,31 @@ class Forjado:
 
 
 @dataclass
+class Muro:
+    id: str
+    nivel_id: str                # nivel donde apoya la base del muro
+    inicio: list[float]          # [x, y] local; eje del muro = cara vista por el escáner
+    fin: list[float]
+    altura: float                # m, del suelo terminado al techo (bajo el forjado superior)
+    espesor: float               # m; SUPUESTO (el escáner sólo ve una cara)
+    confianza: float = 1.0       # 0..1: cobertura de puntos frente a la esperada
+    espesor_medido: bool = False
+
+
+@dataclass
+class Cubierta:
+    """Cubierta plana (v2). Cota inferior local; se apoya en el nivel ``nivel_id`` (planta que cubre)."""
+    id: str
+    nivel_id: str
+    cota_inferior: float
+    espesor: float
+    contorno: list[list[float]]
+    huecos: list[list[list[float]]] = field(default_factory=list)
+    area_m2: float = 0.0
+    espesor_medido: bool = False
+
+
+@dataclass
 class Terreno:
     puntos: list[list[float]]    # [[x, y, z], ...] local; para Toposolid
     vertices: list[list[float]] = field(default_factory=list)  # malla para exportar
@@ -47,6 +72,8 @@ class Modelo:
     epsg: str = ""
     niveles: list[Nivel] = field(default_factory=list)
     forjados: list[Forjado] = field(default_factory=list)
+    muros: list[Muro] = field(default_factory=list)
+    cubiertas: list[Cubierta] = field(default_factory=list)
     terreno: Terreno | None = None
     avisos: list[str] = field(default_factory=list)
     version: int = VERSION
@@ -62,6 +89,8 @@ class Modelo:
             epsg=d.get("epsg", ""),
             niveles=[Nivel(**n) for n in d.get("niveles", [])],
             forjados=[Forjado(**f) for f in d.get("forjados", [])],
+            muros=[Muro(**m) for m in d.get("muros", [])],
+            cubiertas=[Cubierta(**c) for c in d.get("cubiertas", [])],
             terreno=Terreno(**d["terreno"]) if d.get("terreno") else None,
             avisos=list(d.get("avisos", [])),
             version=d.get("version", VERSION),

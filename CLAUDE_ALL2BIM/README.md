@@ -1,5 +1,8 @@
 # CLAUDE_ALL2BIM
 
+> **Sustituido por `scan2rvt/`** (misma rama). Scan2RVT ya incluye Revit 2026, interfaz y compilación a .exe;
+> los muros y las cubiertas de este prototipo se han integrado allí. Se conserva sólo como referencia.
+
 Pipeline local / open source: **nube de puntos (.las) -> modelo 3D interno validable -> IFC4 -> RVT**.
 
 ## Estado (v0.1, MVP)

@@ -3,7 +3,7 @@
 Herramienta externa (Windows) que convierte nubes de puntos de escáner (Leica BLK360)
 y de dron (DJI Matrice 4E / DJI Terra) en:
 
-- **Revit 2026 (.rvt)** con elementos nativos: niveles, suelos/forjados y terreno (Toposolid).
+- **Revit 2026 (.rvt)** con elementos nativos: niveles, suelos/forjados, **muros**, **cubiertas planas** y terreno (Toposolid).
 - **IFC 4** georreferenciado, **glTF (.glb)**, **OBJ**, **STL** y nube limpia **.laz**.
 - **Informe HTML** con niveles, forjados, avisos y plantas.
 
@@ -16,6 +16,7 @@ Nubes (.e57 .las .laz .ply .pts .xyz)
   → lectura por bloques + submuestreo a 2 cm (centroide por vóxel)
   → limpieza de ruido (filtro estadístico)
   → terreno: clase LAS 2 o filtro morfológico progresivo (Zhang 2003) → MDT
+  → muros: superficies verticales vistas en planta como líneas (RANSAC), por planta; esquinas ajustadas
   → niveles y forjados: superficies horizontales (área en planta por franja de altura),
     emparejado techo/suelo = forjado con espesor medido; contornos con huecos
   → modelo.json (coordenadas locales + offset)
@@ -46,6 +47,14 @@ cada etiqueta `v*` lo publica además como versión descargable.
 
 ## Estado (fase 1)
 
-Hecho: terreno, niveles, forjados/suelos, exportadores, interfaz con arrastrar y soltar, puente con Revit.
-Pendiente (fase 2): muros, ajuste de contornos de forjado a los muros, alineación escáner–dron,
+Hecho: terreno, niveles, forjados/suelos, exportadores, interfaz con arrastrar y soltar, puente con Revit,
+**muros** y **cubierta plana** (formato `modelo.json` versión 2).
+Comprobado sólo con el edificio sintético (`scan2rvt.sintetico`): 8 muros de 20,0 × 12,0 m con esquinas cerradas,
+geometría verificada en el IFC. **No probado con escaneos reales** ni con Revit (sin Revit en el entorno de desarrollo;
+el complemento sólo se compila en GitHub Actions).
+
+Limitaciones de los muros: el eje es la **cara vista** por el escáner (no el eje real), el espesor es un supuesto
+(0,20 m), sin puertas ni ventanas, sin muros curvos. La cubierta se supone plana y con espesor supuesto.
+
+Pendiente: puertas y ventanas, ajuste de forjados a los muros, alineación escáner–dron, pendientes de cubierta,
 vista 3D de revisión en la app.

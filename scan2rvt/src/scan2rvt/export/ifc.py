@@ -1,4 +1,4 @@
-"""Exportación a IFC4: emplazamiento, edificio, plantas, forjados (IfcSlab) y terreno."""
+"""Exportación a IFC4: emplazamiento, edificio, plantas, forjados (IfcSlab), muros (IfcWall), cubiertas (IfcRoof) y terreno."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ import ifcopenshell.api.project
 import ifcopenshell.api.root
 import ifcopenshell.api.spatial
 import ifcopenshell.api.unit
+import math
+
 import numpy as np
 
 from ..model import Forjado, Modelo
@@ -22,6 +24,11 @@ def _matriz(z: float = 0.0) -> np.ndarray:
     m = np.eye(4)
     m[2, 3] = z
     return m
+
+
+def _matriz_muro(x: float, y: float, z: float, angulo: float) -> np.ndarray:
+    c, s = math.cos(angulo), math.sin(angulo)
+    return np.array([[c, -s, 0, x], [s, c, 0, y], [0, 0, 1, z], [0, 0, 0, 1]], dtype=float)
 
 
 def _polilinea(f: ifcopenshell.file, pts: list[list[float]]):
@@ -79,6 +86,25 @@ def exportar(modelo: Modelo, ruta: Path, nombre: str) -> Path:
         ifcopenshell.api.geometry.assign_representation(f, product=losa, representation=_cuerpo_forjado(f, cuerpo, fj))
         if fj.nivel_id in plantas:
             ifcopenshell.api.spatial.assign_container(f, products=[losa], relating_structure=plantas[fj.nivel_id])
+
+    cotas = {n.id: n.cota for n in modelo.niveles}
+    for m in modelo.muros:
+        dx, dy = m.fin[0] - m.inicio[0], m.fin[1] - m.inicio[1]
+        muro = ifcopenshell.api.root.create_entity(f, ifc_class="IfcWall", name=m.id)
+        rep = ifcopenshell.api.geometry.add_wall_representation(
+            f, context=cuerpo, length=math.hypot(dx, dy), height=float(m.altura), thickness=float(m.espesor))
+        ifcopenshell.api.geometry.assign_representation(f, product=muro, representation=rep)
+        ifcopenshell.api.geometry.edit_object_placement(
+            f, product=muro, matrix=_matriz_muro(m.inicio[0], m.inicio[1], cotas.get(m.nivel_id, 0.0), math.atan2(dy, dx)))
+        if m.nivel_id in plantas:
+            ifcopenshell.api.spatial.assign_container(f, products=[muro], relating_structure=plantas[m.nivel_id])
+
+    for c in modelo.cubiertas:
+        cubierta = ifcopenshell.api.root.create_entity(f, ifc_class="IfcRoof", name=c.id, predefined_type="FLAT_ROOF")
+        ifcopenshell.api.geometry.edit_object_placement(f, product=cubierta, matrix=_matriz(c.cota_inferior))
+        ifcopenshell.api.geometry.assign_representation(f, product=cubierta, representation=_cuerpo_forjado(f, cuerpo, c))
+        if c.nivel_id in plantas:
+            ifcopenshell.api.spatial.assign_container(f, products=[cubierta], relating_structure=plantas[c.nivel_id])
 
     if modelo.terreno is not None and modelo.terreno.caras:
         terreno = ifcopenshell.api.root.create_entity(

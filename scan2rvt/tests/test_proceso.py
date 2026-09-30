@@ -42,6 +42,9 @@ def test_modelo_json(resultado):
     # Todos los forjados pertenecen a un nivel existente.
     ids = {n.id for n in m.niveles}
     assert all(f.nivel_id in ids for f in m.forjados)
+    assert all(w.nivel_id in ids for w in m.muros) and all(c.nivel_id in ids for c in m.cubiertas)
+    assert (len(m.forjados), len(m.muros), len(m.cubiertas)) == (2, 8, 1)
+    assert m.version == 2
     json.dumps(m.to_dict())
 
 
@@ -57,14 +60,30 @@ def test_ifc(resultado):
         forma = ifcopenshell.geom.create_shape(st, losa)   # mantener la referencia viva mientras se leen los vértices
         v = np.array(forma.geometry.verts).reshape(-1, 3)
         zs.append((round(v[:, 2].min(), 2), round(v[:, 2].max(), 2)))
-    assert sorted(zs) == [(-0.3, 0.0), (3.0, 3.3), (6.0, 6.3)]
+    assert sorted(zs) == [(-0.3, 0.0), (3.0, 3.3)]          # solera y forjado; el techo superior es cubierta
     assert len(f.by_type("IfcGeographicElement")) == 1
+
+    # Cubierta: una sola, plana, entre 6,0 y 6,3 m.
+    (cub,) = f.by_type("IfcRoof")
+    v = np.array(ifcopenshell.geom.create_shape(st, cub).geometry.verts).reshape(-1, 3)
+    assert (round(v[:, 2].min(), 2), round(v[:, 2].max(), 2)) == (6.0, 6.3)
+
+    # Muros: 4 por planta, con la longitud, altura y espesor del modelo, en el nivel correcto.
+    muros = f.by_type("IfcWall")
+    assert len(muros) == 8
+    dims = []
+    for w in muros:
+        v = np.array(ifcopenshell.geom.create_shape(st, w).geometry.verts).reshape(-1, 3)
+        ext = v.max(axis=0) - v.min(axis=0)
+        assert round(min(ext[0], ext[1]), 2) == 0.20            # espesor supuesto del modelo
+        dims.append((round(max(ext[0], ext[1]), 1), round(ext[2], 1), round(v[:, 2].min(), 1)))
+    assert sorted(dims) == sorted([(20.0, 3.0, 0.0)] * 2 + [(12.0, 3.0, 0.0)] * 2 + [(20.0, 2.7, 3.3)] * 2 + [(12.0, 2.7, 3.3)] * 2)
 
 
 def test_mallas_y_las(resultado):
     glb = next(a for a in resultado.archivos if a.suffix == ".glb")
     escena = trimesh.load(glb)
-    assert len(escena.geometry) == 4        # terreno + 3 forjados
+    assert len(escena.geometry) == 12       # terreno + 2 forjados + 1 cubierta + 8 muros
     assert any(a.suffix == ".obj" for a in resultado.archivos)
     assert any(a.suffix == ".stl" for a in resultado.archivos)
     assert sum(a.suffix == ".laz" for a in resultado.archivos) == 2
@@ -73,6 +92,7 @@ def test_mallas_y_las(resultado):
 def test_informe(resultado):
     html = resultado.informe.read_text(encoding="utf-8")
     assert "Nivel 1" in html and "EPSG:25830" in html
+    assert "Muros" in html and "Cubiertas" in html and 'class="muro"' in html
 
 
 def test_rvt_fuera_de_windows_avisa(resultado):

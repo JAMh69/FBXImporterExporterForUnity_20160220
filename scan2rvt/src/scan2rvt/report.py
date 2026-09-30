@@ -16,6 +16,7 @@ main{max-width:960px;margin:auto}h1{font-size:24px;margin:0 0 4px}h2{font-size:1
 .mut{color:var(--mut)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
 th{font-weight:600}.num{text-align:right;font-variant-numeric:tabular-nums}.ok{color:var(--ok)}.warn{color:var(--warn)}
 svg{width:100%;height:auto;max-height:360px;border:1px solid var(--line);border-radius:8px}li{margin:4px 0}
+.planta path.muro{fill:none;stroke:var(--fg);stroke-width:3}
 .planta path{fill:var(--fill);stroke:var(--stroke);stroke-width:1.5;fill-rule:evenodd;vector-effect:non-scaling-stroke}
 """
 
@@ -26,10 +27,11 @@ def _miles(n: int) -> str:
 
 def _svg_planta(modelo: Modelo, nivel_id: str) -> str:
     fj = [f for f in modelo.forjados if f.nivel_id == nivel_id]
-    if not fj:
+    mu = [w for w in modelo.muros if w.nivel_id == nivel_id]
+    if not fj and not mu:
         return ""
-    xs = [p[0] for f in fj for p in f.contorno]
-    ys = [p[1] for f in fj for p in f.contorno]
+    xs = [p[0] for f in fj for p in f.contorno] + [q[0] for w in mu for q in (w.inicio, w.fin)]
+    ys = [p[1] for f in fj for p in f.contorno] + [q[1] for w in mu for q in (w.inicio, w.fin)]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
     m = max(x1 - x0, y1 - y0) * 0.05 + 0.5
     w, h = x1 - x0 + 2 * m, y1 - y0 + 2 * m
@@ -38,6 +40,9 @@ def _svg_planta(modelo: Modelo, nivel_id: str) -> str:
         return "M" + " L".join(f"{p[0] - x0 + m:.2f},{y1 - p[1] + m:.2f}" for p in pts) + " Z"
 
     paths = "".join(f'<path d="{anillo(f.contorno)} {" ".join(anillo(hh) for hh in f.huecos)}"/>' for f in fj)
+    paths += "".join(
+        f'<path class="muro" d="M{w.inicio[0] - x0 + m:.2f},{y1 - w.inicio[1] + m:.2f} '
+        f'L{w.fin[0] - x0 + m:.2f},{y1 - w.fin[1] + m:.2f}"/>' for w in mu)
     return f'<svg class="planta" viewBox="0 0 {w:.2f} {h:.2f}" role="img" aria-label="Planta">{paths}</svg>'
 
 
@@ -53,6 +58,19 @@ def escribir(ruta: Path, nombre: str, modelo: Modelo, info: dict, res_niveles=No
         f"<td class='num'>{f.area_m2:.1f}</td><td class='num'>{len(f.huecos)}</td>"
         f"<td class='{'ok' if f.espesor_medido else 'warn'}'>{'medido' if f.espesor_medido else 'supuesto'}</td></tr>"
         for f in modelo.forjados
+    )
+    filas_mu = "".join(
+        f"<tr><td>{e(w.id)}</td><td>{e(nombres.get(w.nivel_id, ''))}</td>"
+        f"<td class='num'>{((w.fin[0] - w.inicio[0]) ** 2 + (w.fin[1] - w.inicio[1]) ** 2) ** 0.5:.2f}</td>"
+        f"<td class='num'>{w.altura:.2f}</td><td class='num'>{w.espesor:.2f} (supuesto)</td>"
+        f"<td class='{'ok' if w.confianza >= 0.3 else 'warn'}'>{w.confianza:.2f}</td></tr>"
+        for w in modelo.muros
+    )
+    filas_cu = "".join(
+        f"<tr><td>{e(c.id)}</td><td>{e(nombres.get(c.nivel_id, ''))}</td><td class='num'>{c.cota_inferior + modelo.offset[2]:.3f}</td>"
+        f"<td class='num'>{c.espesor:.2f}</td><td class='num'>{c.area_m2:.1f}</td>"
+        f"<td class='{'ok' if c.espesor_medido else 'warn'}'>{'medido' if c.espesor_medido else 'supuesto'}</td></tr>"
+        for c in modelo.cubiertas
     )
     plantas = "".join(
         f"<h3>{e(n.nombre)}</h3>{_svg_planta(modelo, n.id)}" for n in modelo.niveles if _svg_planta(modelo, n.id)
@@ -74,6 +92,10 @@ def escribir(ruta: Path, nombre: str, modelo: Modelo, info: dict, res_niveles=No
 <table><tr><th>Nivel</th><th class="num">Cota local (m)</th><th class="num">Cota real (m)</th></tr>{filas_niv}</table>
 <h2>Forjados y suelos</h2>
 <table><tr><th>Id</th><th>Nivel</th><th class="num">Espesor (m)</th><th class="num">Área (m²)</th><th class="num">Huecos</th><th>Espesor</th></tr>{filas_fj}</table>
+<h2>Muros</h2>
+{('<table><tr><th>Id</th><th>Nivel</th><th class="num">Longitud (m)</th><th class="num">Altura (m)</th><th class="num">Espesor (m)</th><th>Confianza</th></tr>' + filas_mu + '</table><p class="mut">El eje es la cara vista por el escáner.</p>') if filas_mu else '<p class="mut">Sin muros.</p>'}
+<h2>Cubiertas</h2>
+{('<table><tr><th>Id</th><th>Planta</th><th class="num">Cota inferior real (m)</th><th class="num">Espesor (m)</th><th class="num">Área (m²)</th><th>Espesor</th></tr>' + filas_cu + '</table>') if filas_cu else '<p class="mut">Sin cubiertas.</p>'}
 <h2>Terreno</h2><p>{terreno}</p>
 <h2>Plantas</h2>{plantas or '<p class="mut">Sin forjados.</p>'}
 <h2>Avisos</h2><ul>{avisos}</ul>

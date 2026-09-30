@@ -33,11 +33,27 @@ class LevelSettings:
 
 
 @dataclass
+class WallSettings:
+    voxel_m: float = 0.05             # submuestreo para el análisis de superficies verticales
+    tol_m: float = 0.04               # distancia máxima de un punto a la línea del muro
+    espesor_defecto_m: float = 0.20   # el escáner sólo ve una cara: el espesor es un supuesto
+    longitud_min_m: float = 0.50
+    hueco_max_m: float = 1.00         # separación máxima entre puntos de un mismo muro (puertas anchas lo parten)
+    margen_z_m: float = 0.10          # se ignora la franja junto a suelo y techo
+    cobertura_z_min: float = 0.5      # el muro debe cubrir al menos esta fracción de la altura libre
+    puntos_min: int = 150
+    iteraciones: int = 600
+    muestra_max: int = 30000
+    max_por_nivel: int = 60
+
+
+@dataclass
 class Settings:
     voxel_m: float = 0.02           # submuestreo general (la tolerancia del proyecto es 2 cm)
     quitar_ruido: bool = True
     terreno: TerrainSettings = field(default_factory=TerrainSettings)
     niveles: LevelSettings = field(default_factory=LevelSettings)
+    muros: WallSettings = field(default_factory=WallSettings)
     revit_exe: str = r"C:\Program Files\Autodesk\Revit 2026\Revit.exe"
     revit_version: str = "2026"
     plantilla_rte: str = ""

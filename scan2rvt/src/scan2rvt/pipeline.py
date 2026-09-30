@@ -12,11 +12,11 @@ import numpy as np
 from shapely.affinity import translate
 from shapely.geometry import Polygon, mapping
 
-from . import __version__, levels, report, terrain
+from . import __version__, levels, muros as detmuros, report, terrain
 from .cloud import merge, remove_outliers
 from .config import Settings
 from .io import buscar_nubes, leer_nube
-from .model import Forjado, Modelo, Nivel, Terreno
+from .model import Cubierta, Forjado, Modelo, Muro, Nivel, Terreno
 from .paths import ProjectPaths
 
 SALIDAS = ("rvt", "ifc", "obj", "glb", "stl", "las")
@@ -124,6 +124,13 @@ def ejecutar(trabajo: Trabajo, ajustes: Settings, progreso: Progreso | None = No
     else:
         avisos.append("Sin nube de escáner: no se detectan niveles ni forjados.")
 
+    # 4b. Muros ------------------------------------------------------------------
+    muros_det = []
+    if res_niveles and len(res_niveles.niveles) >= 2:
+        paso("Detectando muros…", 0.68)
+        muros_det, av = detmuros.detectar_muros(escaner, res_niveles, ajustes.muros, ajustes.niveles)
+        avisos += av
+
     # 5. Modelo en coordenadas locales -----------------------------------------
     paso("Construyendo el modelo…", 0.75)
     todas = np.concatenate([n.xyz for n in (escaner, dron) if len(n)])
@@ -138,24 +145,46 @@ def ejecutar(trabajo: Trabajo, ajustes: Settings, progreso: Progreso | None = No
     if res_niveles:
         for i, (nombre, cota) in enumerate(res_niveles.niveles):
             modelo.niveles.append(Nivel(id=f"N{i}", nombre=nombre, cota=round(cota - oz, 4) + 0.0))
-        k = 0
-        for i_nivel, fd in res_niveles.forjados:
+        # El techo más alto (visto sólo desde abajo, con espesor supuesto) es la cubierta, no un forjado.
+        ultimo = len(res_niveles.forjados) - 1
+        i_cub = ultimo if (ultimo >= 1 and not res_niveles.forjados[ultimo][1].medido) else None
+        k = kc = 0
+        for pos, (i_nivel, fd) in enumerate(res_niveles.forjados):
             for poly in fd.poligonos:
                 p: Polygon = translate(poly, -ox, -oy).buffer(0)
                 if p.is_empty or p.geom_type != "Polygon":
                     continue
                 p = Polygon(p.exterior.coords, [h.coords for h in p.interiors])
+                contorno = _anillo_local(mapping(p)["coordinates"][0], 0, 0)
+                huecos = [_anillo_local(h, 0, 0) for h in mapping(p)["coordinates"][1:]]
+                if pos == i_cub:
+                    modelo.cubiertas.append(Cubierta(
+                        id=f"C{kc}", nivel_id=f"N{i_nivel - 1}",
+                        cota_inferior=round(fd.z_inferior - oz, 4) + 0.0,
+                        espesor=round(fd.z_superior - fd.z_inferior, 4),
+                        contorno=contorno, huecos=huecos, area_m2=round(p.area, 2), espesor_medido=fd.medido))
+                    kc += 1
+                    continue
                 modelo.forjados.append(Forjado(
                     id=f"F{k}",
                     nivel_id=f"N{i_nivel}",
                     cota_superior=round(fd.z_superior - oz, 4) + 0.0,
                     espesor=round(fd.z_superior - fd.z_inferior, 4),
-                    contorno=_anillo_local(mapping(p)["coordinates"][0], 0, 0),
-                    huecos=[_anillo_local(h, 0, 0) for h in mapping(p)["coordinates"][1:]],
+                    contorno=contorno,
+                    huecos=huecos,
                     area_m2=round(p.area, 2),
                     espesor_medido=fd.medido,
                 ))
                 k += 1
+        if kc:
+            avisos.append("Cubierta: se supone plana y con el espesor del techo visto desde abajo (0,30 m); "
+                          "no se detectan pendientes ni aleros.")
+        for j, m in enumerate(muros_det):
+            modelo.muros.append(Muro(
+                id=f"M{j}", nivel_id=f"N{m.nivel_idx}",
+                inicio=[round(m.p0[0] - ox, 4), round(m.p0[1] - oy, 4)],
+                fin=[round(m.p1[0] - ox, 4), round(m.p1[1] - oy, 4)],
+                altura=round(m.altura, 4), espesor=m.espesor, confianza=round(m.confianza, 3)))
 
     if res_terreno:
         loc = np.column_stack([res_terreno.rejilla_xy - [ox, oy], res_terreno.rejilla_z - oz])
