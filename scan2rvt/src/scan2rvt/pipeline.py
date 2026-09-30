@@ -13,7 +13,7 @@ from shapely.affinity import translate
 from shapely.geometry import Polygon, mapping
 
 from . import __version__, levels, muros as detmuros, report, terrain
-from .cloud import merge, remove_outliers
+from .cloud import limitar_puntos, merge, remove_outliers
 from .config import Settings
 from .io import buscar_nubes, leer_nube
 from .model import Cubierta, Forjado, Modelo, Muro, Nivel, Terreno
@@ -100,6 +100,17 @@ def ejecutar(trabajo: Trabajo, ajustes: Settings, progreso: Progreso | None = No
     # 2. Limpieza --------------------------------------------------------------
     escaner = merge(esc_nubes)
     dron = merge(dron_nubes)
+    for etiqueta, nube in (("escáner", escaner), ("dron", dron)):
+        n0 = len(nube)
+        if n0 > ajustes.max_puntos:
+            paso(f"Reduciendo la nube de {etiqueta} ({n0:,} puntos)…".replace(",", "."), 0.33)
+            reducida, vox = limitar_puntos(nube, ajustes.max_puntos, ajustes.voxel_m)
+            if etiqueta == "escáner":
+                escaner = reducida
+            else:
+                dron = reducida
+            avisos.append(f"Nube de {etiqueta}: {n0:,} puntos son demasiados para el análisis; se ha submuestreado "
+                          f"a {vox * 100:.0f} cm ({len(reducida):,} puntos).".replace(",", "."))
     if ajustes.quitar_ruido:
         paso("Quitando ruido…", 0.34)
         escaner = remove_outliers(escaner) if len(escaner) else escaner

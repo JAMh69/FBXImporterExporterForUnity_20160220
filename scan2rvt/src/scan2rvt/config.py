@@ -51,6 +51,7 @@ class WallSettings:
 class Settings:
     voxel_m: float = 0.02           # submuestreo general (la tolerancia del proyecto es 2 cm)
     quitar_ruido: bool = True
+    max_puntos: int = 40_000_000    # por encima, se sube el vóxel (el análisis usa 5 cm; más puntos no aportan)
     terreno: TerrainSettings = field(default_factory=TerrainSettings)
     niveles: LevelSettings = field(default_factory=LevelSettings)
     muros: WallSettings = field(default_factory=WallSettings)

@@ -107,32 +107,52 @@ def merge(nubes: list[Nube]) -> Nube:
     )
 
 
-def remove_outliers(nube: Nube, vecinos: int = 16, sigma: float = 2.5) -> Nube:
+def remove_outliers(nube: Nube, vecinos: int = 16, sigma: float = 2.5, bloque: int = 1_000_000) -> Nube:
     """Filtro estadístico: quita puntos aislados (ruido del escáner, reflejos, pájaros...).
 
     Un punto es ruido si su distancia media a sus vecinos supera la media global
-    en más de ``sigma`` desviaciones típicas.
+    en más de ``sigma`` desviaciones típicas. Los vecinos se consultan por bloques:
+    la memoria no crece con el tamaño de la nube (antes pedía N × 17 × 8 bytes de golpe).
     """
     if len(nube) < vecinos * 2:
         return nube
     from scipy.spatial import cKDTree
 
-    d, _ = cKDTree(nube.xyz).query(nube.xyz, k=vecinos + 1, workers=-1)
-    media = d[:, 1:].mean(axis=1)
-    return nube.subset(media <= media.mean() + sigma * media.std())
+    arbol = cKDTree(nube.xyz)
+    media = np.empty(len(nube), dtype=np.float32)
+    for a in range(0, len(nube), bloque):
+        d, _ = arbol.query(nube.xyz[a:a + bloque], k=vecinos + 1, workers=-1)
+        media[a:a + bloque] = d[:, 1:].mean(axis=1)
+    m, sd = media.mean(dtype=np.float64), media.std(dtype=np.float64)
+    return nube.subset(media <= m + sigma * sd)
 
 
-def normales(xyz: np.ndarray, vecinos: int = 16) -> np.ndarray:
+def limitar_puntos(nube: Nube, maximo: int, voxel: float) -> tuple[Nube, float]:
+    """Sube el tamaño de vóxel hasta que la nube tenga como mucho ``maximo`` puntos.
+
+    Devuelve (nube, vóxel final). Si ya cabe, la devuelve sin tocar. Los puntos de una superficie
+    escalan con 1/vóxel², de ahí la raíz cuadrada.
+    """
+    if maximo <= 0 or len(nube) <= maximo:
+        return nube, voxel
+    while len(nube) > maximo:
+        voxel *= max(1.25, (len(nube) / maximo) ** 0.5)
+        nube = voxel_reduce(nube, voxel)
+    return nube, voxel
+
+
+def normales(xyz: np.ndarray, vecinos: int = 16, bloque: int = 250_000) -> np.ndarray:
     """Normal de cada punto por análisis de componentes principales de sus vecinos."""
     from scipy.spatial import cKDTree
 
     k = min(vecinos, len(xyz))
-    _, idx = cKDTree(xyz).query(xyz, k=k, workers=-1)
+    arbol = cKDTree(xyz)
     out = np.empty_like(xyz)
-    for a in range(0, len(xyz), 200_000):          # por bloques para acotar memoria
-        vec = xyz[idx[a:a + 200_000]]
+    for a in range(0, len(xyz), bloque):          # por bloques para acotar memoria
+        _, idx = arbol.query(xyz[a:a + bloque], k=k, workers=-1)
+        vec = xyz[idx]
         vec = vec - vec.mean(axis=1, keepdims=True)
         cov = np.einsum("nki,nkj->nij", vec, vec)
         _, v = np.linalg.eigh(cov)
-        out[a:a + 200_000] = v[:, :, 0]            # autovector del menor autovalor
+        out[a:a + bloque] = v[:, :, 0]            # autovector del menor autovalor
     return out

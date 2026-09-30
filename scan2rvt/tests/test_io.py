@@ -111,3 +111,37 @@ def test_quitar_ruido():
     ruido = rng.random((20, 3)) * 5 + [0, 0, 3]
     n = remove_outliers(Nube(np.vstack([plano, ruido])))
     assert (n.xyz[:, 2] < 1).sum() >= 4900 and (n.xyz[:, 2] > 1).sum() == 0
+
+
+def test_ruido_y_normales_por_bloques_dan_lo_mismo():
+    """El procesado por bloques (memoria acotada) no cambia el resultado."""
+    import numpy as np
+
+    from scan2rvt.cloud import Nube, normales, remove_outliers
+
+    rng = np.random.default_rng(3)
+    plano = np.column_stack([rng.random((4000, 2)) * 10, rng.normal(0, 0.002, 4000)])
+    ruido = rng.random((40, 3)) * [10, 10, 5] + [0, 0, 1]          # puntos sueltos lejos del plano
+    nube = Nube(np.vstack([plano, ruido]))
+
+    grande = remove_outliers(nube, bloque=10_000_000)
+    pequena = remove_outliers(nube, bloque=500)
+    assert len(grande) == len(pequena) < len(nube)
+    assert np.array_equal(grande.xyz, pequena.xyz)
+
+    n1, n2 = normales(plano, bloque=10_000_000), normales(plano, bloque=300)
+    assert np.allclose(n1, n2)
+    assert np.abs(n1[:, 2]).mean() > 0.99                            # normales verticales en un plano horizontal
+
+
+def test_limitar_puntos():
+    import numpy as np
+
+    from scan2rvt.cloud import Nube, limitar_puntos
+
+    rng = np.random.default_rng(4)
+    nube = Nube(np.column_stack([rng.random((200_000, 2)) * 20, np.zeros(200_000)]))
+    igual, v0 = limitar_puntos(nube, 10_000_000, 0.02)
+    assert igual is nube and v0 == 0.02                                  # ya cabe: no se toca
+    red, v = limitar_puntos(nube, 20_000, 0.02)
+    assert 0 < len(red) <= 20_000 and v > 0.02

@@ -53,6 +53,11 @@ Comprobado sólo con el edificio sintético (`scan2rvt.sintetico`): 8 muros de 2
 geometría verificada en el IFC. **No probado con escaneos reales** ni con Revit (sin Revit en el entorno de desarrollo;
 el complemento sólo se compila en GitHub Actions).
 
+Nubes muy grandes: por encima de 40 millones de puntos (`max_puntos` en `config/ajustes.json`) la app sube el tamaño de
+vóxel automáticamente y lo avisa; el análisis trabaja a 5 cm, así que no pierde información útil, pero la nube limpia
+(.laz) sale con menos resolución. Los vecinos (ruido y normales) se calculan por bloques para acotar la memoria.
+Un primer uso con 365 millones de puntos falló por memoria (46 GiB) antes de este cambio.
+
 Limitaciones de los muros: el eje es la **cara vista** por el escáner (no el eje real), el espesor es un supuesto
 (0,20 m), sin puertas ni ventanas, sin muros curvos. La cubierta se supone plana y con espesor supuesto.
 
