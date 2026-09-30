@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import (QApplication, QCheckBox, QDockWidget, QDoubleSpinBox, QFileDialog, QFormLayout,
+from PySide6.QtWidgets import (QApplication, QHeaderView, QCheckBox, QDockWidget, QDoubleSpinBox, QFileDialog, QFormLayout,
                                QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView)
 
@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
         box = QWidget(); lay = QVBoxLayout(box)
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Tipo", "Planta", "Longitud/Area", "Espesor", "Confianza"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.itemSelectionChanged.connect(self.refresh_scene)
@@ -88,6 +89,7 @@ class MainWindow(QMainWindow):
         v = QPushButton("Validar modelo"); v.clicked.connect(self.run_validation); lay.addWidget(v)
         self.log = QPlainTextEdit(); self.log.setReadOnly(True); self.log.setMaximumHeight(160); lay.addWidget(self.log)
         e = QPushButton("Exportar IFC (valida antes)..."); e.clicked.connect(self.export_ifc); lay.addWidget(e)
+        box.setMinimumWidth(430)
         self._dock("Elementos y validacion", box, Qt.RightDockWidgetArea)
 
     def _dock(self, title, widget, area):

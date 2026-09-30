@@ -5,9 +5,9 @@ Pipeline local / open source: **nube de puntos (.las) -> modelo 3D interno valid
 ## Estado (v0.1, MVP)
 Probado con una nube sintetica (habitacion 6x4x2.7 m): `pytest` pasa (3 tests: motor LAS->IFC, mallas 3D, tabla de la ventana).
 NO probado con escaneos reales. La deteccion es heuristica y necesita revision manual.
-La interfaz PySide6 NO se ha visto funcionando con pantalla: en el entorno de desarrollo (Linux sin display) solo se
-probo la construccion de la ventana/tabla y el render de las mallas con PyVista (`docs/preview_scene.png`).
-El visor interactivo (QtInteractor) esta sin probar; el primer arranque en Windows 11 puede requerir ajustes.
+La interfaz PySide6 se lanzo en Linux con pantalla virtual (Xvfb + OpenGL por software): abre un LAS sintetico, detecta y muestra
+nube y modelo en el visor interactivo (`docs/app_screenshot.png`). NO se ha probado en Windows 11, ni con un LAS real,
+ni la interaccion con raton (rotar, seleccionar filas, eliminar) mas alla del test de tabla.
 
 | Etapa | Modulo | Estado |
 |---|---|---|
