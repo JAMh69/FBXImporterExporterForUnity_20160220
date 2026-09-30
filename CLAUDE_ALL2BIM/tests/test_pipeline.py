@@ -29,10 +29,13 @@ def test_las_to_ifc(tmp_path):
     _room_las(las)
     assert main(["las2model", str(las), str(js)]) == 0
     m = BimModel.load(js)
-    assert len(m.storeys) >= 1
+    assert len(m.storeys) == 1
+    assert len(m.roofs) == 1
+    assert abs(m.walls[0].height - 2.7) < 0.1
     assert len(m.walls) == 4
     assert validate(m) == []
     assert main(["model2ifc", str(js), str(ifc)]) == 0
     f = ifcopenshell.open(str(ifc))
     assert len(f.by_type("IfcWall")) == 4
-    assert len(f.by_type("IfcSlab")) >= 1
+    assert len(f.by_type("IfcSlab")) == 1
+    assert len(f.by_type("IfcRoof")) == 1

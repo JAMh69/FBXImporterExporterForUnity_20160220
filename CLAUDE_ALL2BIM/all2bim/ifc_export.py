@@ -55,4 +55,12 @@ def export_ifc(model: BimModel, path: str, project_name: str = "ALL2BIM") -> Non
         run("geometry.edit_object_placement", f, product=slab, matrix=_matrix(0, 0, elev - sl.thickness, 0))
         run("spatial.assign_container", f, products=[slab], relating_structure=st)
 
+    for r in model.roofs:
+        roof = run("root.create_entity", f, ifc_class="IfcRoof", name="Cubierta")
+        rep = run("geometry.add_slab_representation", f, context=body,
+                  depth=r.thickness, polyline=[tuple(p) for p in r.outline])
+        run("geometry.assign_representation", f, product=roof, representation=rep)
+        run("geometry.edit_object_placement", f, product=roof, matrix=_matrix(0, 0, r.elevation, 0))
+        run("spatial.assign_container", f, products=[roof], relating_structure=building)
+
     f.write(path)

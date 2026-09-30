@@ -6,14 +6,18 @@ requires-python = ">=3.10"
 dependencies = ["numpy", "laspy", "ifcopenshell"]
 
 [project.optional-dependencies]
+gui = ["PySide6", "pyvista", "pyvistaqt"]
 dev = ["pytest"]
 
 [project.scripts]
 all2bim = "all2bim.cli:main"
+
+[project.gui-scripts]
+all2bim-gui = "all2bim.gui.main_window:main"
 
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["all2bim"]
+packages = ["all2bim", "all2bim.gui"]

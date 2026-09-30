@@ -30,11 +30,20 @@ class Wall:
 
 
 @dataclass
+class Roof:
+    """Cubierta plana (MVP). elevation = cota de la cara inferior."""
+    outline: list[tuple[float, float]]
+    elevation: float
+    thickness: float
+
+
+@dataclass
 class BimModel:
     units: str = "m"
     storeys: list[Storey] = field(default_factory=list)
     slabs: list[Slab] = field(default_factory=list)
     walls: list[Wall] = field(default_factory=list)
+    roofs: list[Roof] = field(default_factory=list)
 
     def save(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
@@ -48,4 +57,6 @@ class BimModel:
             slabs=[Slab(s["storey"], [tuple(p) for p in s["outline"]], s["thickness"]) for s in d["slabs"]],
             walls=[Wall(w["storey"], tuple(w["start"]), tuple(w["end"]), w["height"],
                         w["thickness"], w.get("confidence", 1.0)) for w in d["walls"]],
+            roofs=[Roof([tuple(p) for p in r["outline"]], r["elevation"], r["thickness"])
+                   for r in d.get("roofs", [])],
         )

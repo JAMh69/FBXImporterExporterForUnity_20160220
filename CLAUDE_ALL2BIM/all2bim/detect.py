@@ -8,7 +8,7 @@ from __future__ import annotations
 import laspy
 import numpy as np
 
-from .model import BimModel, Slab, Storey, Wall
+from .model import BimModel, Roof, Slab, Storey, Wall
 
 
 def load_las(path: str, voxel: float = 0.05) -> np.ndarray:
@@ -68,19 +68,28 @@ def _ransac_vertical_lines(xy: np.ndarray, tol: float = 0.03, iters: int = 400,
 
 
 def points_to_model(pts: np.ndarray, wall_thickness: float = 0.2, slab_thickness: float = 0.2) -> BimModel:
+    """Con >=2 niveles horizontales, el mas alto es la cubierta y el resto son plantas."""
     model = BimModel()
     levels = _floor_levels(pts[:, 2])
     if not levels:
         return model
-    tops = levels[1:] + [float(pts[:, 2].max())]
-    for k, (z0, z1) in enumerate(zip(levels, tops)):
+    if len(levels) >= 2:
+        roof_z, floors = levels[-1], levels[:-1]
+    else:
+        roof_z, floors = float(pts[:, 2].max()), levels
+    tops = floors[1:] + [roof_z]
+    for k, (z0, z1) in enumerate(zip(floors, tops)):
         name = f"Planta {k}"
         model.storeys.append(Storey(name, z0))
         band = pts[(pts[:, 2] > z0 + 0.3) & (pts[:, 2] < z1 - 0.3)]  # excluye suelo y techo
         if len(band) == 0:
             continue
         lo, hi = band[:, :2].min(0), band[:, :2].max(0)
-        model.slabs.append(Slab(name, [(lo[0], lo[1]), (hi[0], lo[1]), (hi[0], hi[1]), (lo[0], hi[1])], slab_thickness))
+        outline = [(float(lo[0]), float(lo[1])), (float(hi[0]), float(lo[1])),
+                   (float(hi[0]), float(hi[1])), (float(lo[0]), float(hi[1]))]
+        model.slabs.append(Slab(name, outline, slab_thickness))
+        if k == len(floors) - 1 and len(levels) >= 2:
+            model.roofs.append(Roof(outline, float(z1), slab_thickness))
         for p0, p1, n in _ransac_vertical_lines(band[:, :2]):
             model.walls.append(Wall(name, (float(p0[0]), float(p0[1])), (float(p1[0]), float(p1[1])),
                                     float(z1 - z0), wall_thickness, confidence=min(1.0, n / 2000)))

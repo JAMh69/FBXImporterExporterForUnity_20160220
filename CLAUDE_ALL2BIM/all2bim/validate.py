@@ -30,4 +30,9 @@ def validate(model: BimModel, min_wall_len: float = 0.3, min_confidence: float =
             issues.append(f"Forjado {i}: contorno con menos de 3 vertices")
         if s.thickness <= 0:
             issues.append(f"Forjado {i}: espesor no positivo")
+    for i, r in enumerate(model.roofs):
+        if len(r.outline) < 3:
+            issues.append(f"Cubierta {i}: contorno con menos de 3 vertices")
+        if r.thickness <= 0:
+            issues.append(f"Cubierta {i}: espesor no positivo")
     return issues
